@@ -17,13 +17,43 @@ Esta guía detalla el estándar de desarrollo utilizado en este proyecto para as
 Sigue estos pasos en orden para mantener la consistencia en todo el proyecto:
 
 ### 1. Base de Datos (Migration)
-Crea la migración para la nueva entidad.
+Crea la migración para la nueva entidad incluyendo siempre los campos de trazabilidad y Soft Deletes.
 ```bash
 php artisan make:migration create_modulo_table
 ```
+**Campos Estándar:**
+```php
+$table->id();
+// ... campos propios del módulo
+$table->softDeletes(); // deleted_at
+$table->unsignedBigInteger('created_by')->nullable();
+$table->unsignedBigInteger('updated_by')->nullable();
+$table->unsignedBigInteger('deleted_by')->nullable();
+$table->timestamps(); // created_at, updated_at
+```
 
 ### 2. Modelo (Model)
-Define el modelo con sus `fillable`, `casts` y relaciones. Si el modelo necesita permisos propios (ej: un Usuario), asegúrate de usar los traits de Spatie si corresponde.
+Define el modelo incluyendo el trait de SoftDeletes y las relaciones de auditoría.
+```php
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class Modulo extends Model {
+    use SoftDeletes;
+
+    protected $fillable = [
+        'nombre', 
+        'created_by', 
+        'updated_by', 
+        'deleted_by'
+    ];
+
+    // Relaciones de trazabilidad
+    public function creator() { return $this->belongsTo(User::class, 'created_by'); }
+    public function updater() { return $this->belongsTo(User::class, 'updated_by'); }
+    public function deleter() { return $this->belongsTo(User::class, 'deleted_by'); }
+}
+```
+Asegúrate de usar los traits de Spatie si el modelo necesita permisos (ej: `HasRoles`).
 
 ### 3. Permisos (Seeder)
 Añade los nuevos permisos en `database/seeders/PermissionSeeder.php`.
@@ -83,6 +113,10 @@ El rol `super-admin` está configurado en `AppServiceProvider.php` para saltarse
 2.  **Lógica de Negocio Compleja**: Si un controlador empieza a tener métodos de más de 30-40 líneas, mueve esa lógica a una **Service Class** en `app/Services`.
 3.  **Resources (Opcional)**: Para proyectos muy grandes, considera usar `JsonResource` de Laravel en lugar de métodos `formatResource()` manuales.
 4.  **Filtros y Búsqueda**: Para listar recursos, usa Query Scopes en los modelos para manejar filtros, ordenamiento y búsquedas de forma limpia.
+5.  **Soft Deletes y Trazabilidad (Audit)**: 
+    *   **Por qué**: En un sistema profesional nunca se borra físicamente la información. El Soft Delete permite recuperar datos y mantener la integridad referencial histórica.
+    *   **Automatización**: Se recomienda implementar un `BaseModel` o un Trait global (ej: `HasAuditFields`) que use los [Model Observers](https://laravel.com/docs/11.x/eloquent#observers) o los eventos `creating`, `updating` y `deleting` para asignar automáticamente los IDs de usuario (`auth()->id()`) a los campos `created_by`, `updated_by` y `deleted_by`.
+    *   **Consultas**: Recuerda que Eloquent excluye los registros "borrados" por defecto. Usa `->withTrashed()` cuando necesites incluirlos en reportes o auditorías.
 
 ---
 

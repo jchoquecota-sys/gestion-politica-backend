@@ -41,6 +41,35 @@ class PermissionSeeder extends Seeder
         'users:list',
         'users:view',
 
+        // ── Sectores module ──────────────────────────────────────────────────
+        'sectores:create',
+        'sectores:delete',
+        'sectores:edit',
+        'sectores:list',
+        'sectores:view',
+
+        // ── Personas module ──────────────────────────────────────────────────
+        'personas:create',
+        'personas:delete',
+        'personas:edit',
+        'personas:list',
+        'personas:view',
+
+        // ── Cargos module ────────────────────────────────────────────────────
+        'cargos:create',
+        'cargos:delete',
+        'cargos:edit',
+        'cargos:list',
+        'cargos:view',
+
+        // ── Bases module ─────────────────────────────────────────────────────
+        'bases:create',
+        'bases:delete',
+        'bases:edit',
+        'bases:list',
+        'bases:list-all', // Permiso especial para ver bases de todos los sectores
+        'bases:view',
+
         // ── Reports module ────────────────────────────────────────────────────
         // 'reports:export',
         // 'reports:view',
