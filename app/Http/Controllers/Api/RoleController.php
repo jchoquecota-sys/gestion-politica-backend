@@ -81,10 +81,9 @@ class RoleController extends Controller
      */
     public function update(UpdateRoleRequest $request, Role $role): JsonResponse
     {
-        $this->preventSuperAdminModification($role);
-
         return DB::transaction(function () use ($request, $role) {
-            if ($request->filled('name')) {
+            if ($request->filled('name') && $request->name !== $role->name) {
+                $this->preventSuperAdminModification($role);
                 $role->update(['name' => $request->name]);
             }
 
@@ -112,7 +111,7 @@ class RoleController extends Controller
      */
     public function destroy(Role $role): JsonResponse
     {
-        $this->preventSuperAdminModification($role);
+        $this->preventSuperAdminModification($role, 'eliminarse');
 
         $role->delete();
 
@@ -152,12 +151,12 @@ class RoleController extends Controller
     /**
      * Prevent any modification to the super-admin role through the API.
      */
-    private function preventSuperAdminModification(Role $role): void
+    private function preventSuperAdminModification(Role $role, string $action = 'modificarse'): void
     {
         if ($role->name === 'super-admin') {
             abort(
                 JsonResponse::HTTP_FORBIDDEN,
-                'El rol "super-admin" es un rol del sistema y no puede modificarse.'
+                "El rol \"super-admin\" es un rol del sistema y no puede {$action}."
             );
         }
     }

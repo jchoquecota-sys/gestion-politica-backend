@@ -20,7 +20,11 @@ class UpdateRoleRequest extends FormRequest
                 'string',
                 'max:100',
                 Rule::unique('roles', 'name')->ignore($this->route('role')),
-                'not_in:super-admin',
+                function ($attribute, $value, $fail) {
+                    if ($value === 'super-admin' && $this->route('role')->name !== 'super-admin') {
+                        $fail('El nombre "super-admin" está reservado para el sistema.');
+                    }
+                },
             ],
             'permissions'   => ['sometimes', 'array'],
             'permissions.*' => ['string', 'exists:permissions,name'],

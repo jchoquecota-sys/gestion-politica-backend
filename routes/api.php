@@ -35,6 +35,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/bases', [App\Http\Controllers\Api\CatalogoController::class, 'bases'])->name('bases');
     });
 
+    // ── Media / Uploads ───────────────────────────────────────────────────────
+    Route::post('/upload', [\App\Http\Controllers\Api\MediaController::class, 'upload'])->name('api.upload');
+
     // ── Roles module ──────────────────────────────────────────────────────────
     // Each route is protected by its own granular permission.
     // The super-admin role bypasses all checks via Gate::before in AppServiceProvider.
@@ -174,4 +177,21 @@ Route::middleware('auth:sanctum')->group(function () {
                 ->name('destroy');
         });
     });
+
+    // ── Actividades module ────────────────────────────────────────────────────
+    Route::get('tipos-actividad', [App\Http\Controllers\Actividad\TipoActividadController::class, 'index'])
+        ->name('api.tipos-actividad.index');
+    Route::post('tipos-actividad', [App\Http\Controllers\Actividad\TipoActividadController::class, 'store'])
+        ->name('api.tipos-actividad.store');
+
+    Route::apiResource('actividades', App\Http\Controllers\Actividad\ActividadController::class)
+        ->names('api.actividades')
+        ->parameters(['actividades' => 'actividad'])
+        ->middleware([
+            'index' => 'permission:actividades:list',
+            'store' => 'permission:actividades:create',
+            'show' => 'permission:actividades:view',
+            'update' => 'permission:actividades:edit',
+            'destroy' => 'permission:actividades:delete',
+        ]);
 });

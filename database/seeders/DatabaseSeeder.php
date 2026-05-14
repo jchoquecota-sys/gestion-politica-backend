@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             PermissionSeeder::class,
             RoleSeeder::class,
             CargoSeeder::class,
+            TipoActividadSeeder::class,
         ]);
     }
 }

@@ -20,10 +20,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Super-admin bypasses every Gate/permission check automatically.
-        // Returning true here short-circuits all subsequent ability checks.
-        // Returning null lets the normal checks continue for other roles.
-        Gate::before(function ($user, string $ability): ?bool {
+        // Implicitly grant "super-admin" role all permissions
+        // This works in the app by using gate-related functions like auth()->user()->can() and hasPermissionTo()
+        Gate::before(function ($user, $ability) {
             return $user->hasRole('super-admin') ? true : null;
         });
     }

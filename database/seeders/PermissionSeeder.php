@@ -75,6 +75,16 @@ class PermissionSeeder extends Seeder
         // ── Reports module ────────────────────────────────────────────────────
         // 'reports:export',
         // 'reports:view',
+
+        // ── Actividades module ────────────────────────────────────────────────
+        'actividades:create',
+        'actividades:delete',
+        'actividades:edit',
+        'actividades:list',
+        'actividades:manage-all',
+        'actividades:manage-sector',
+        'actividades:manage-base',
+        'actividades:view',
     ];
 
     public function run(): void
