@@ -28,24 +28,56 @@ class BaseController extends Controller
 
         // Verificamos el permiso especial
         if (!auth()->user()->hasPermissionTo('bases:list-all')) {
-            // Si no tiene el permiso de listar todo, el sector_id es obligatorio
-            if (!$request->has('sector_id')) {
+            $allowedSectors = auth()->user()->getAllowedSectorIds();
+
+            if (empty($allowedSectors)) {
                 return response()->json([
-                    'status' => 'error',
-                    'message' => 'Debe proporcionar un sector_id para listar las bases.'
-                ], 403);
+                    'status' => 'success',
+                    'data' => []
+                ]);
             }
-            $query->where('sector_id', $request->sector_id);
+
+            if ($request->has('sector_id')) {
+                if (!in_array($request->sector_id, $allowedSectors)) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'No tiene permiso para listar bases de este sector.'
+                    ], 403);
+                }
+                $query->where('sector_id', $request->sector_id);
+            } else {
+                // Filtramos a los sectores permitidos
+                $query->whereIn('sector_id', $allowedSectors);
+            }
         } elseif ($request->has('sector_id')) {
             // Si tiene permiso pero envía sector_id, también filtramos
             $query->where('sector_id', $request->sector_id);
         }
 
-        $bases = $query->get();
+        // Búsqueda
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where('nombre', 'like', "%{$search}%");
+        }
+
+        // Ordenamiento
+        $sortBy = $request->get('sort_by', 'created_at');
+        $sortOrder = $request->get('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        // Paginación
+        $perPage = $request->get('per_page', 15);
+        $paginator = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',
-            'data' => $bases->map(fn($b) => $this->formatResource($b))
+            'data'   => collect($paginator->items())->map(fn($b) => $this->formatResource($b)),
+            'meta'   => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+            ]
         ]);
     }
 
@@ -54,6 +86,15 @@ class BaseController extends Controller
      */
     public function store(StoreBaseRequest $request): JsonResponse
     {
+        if (!auth()->user()->hasPermissionTo('bases:list-all')) {
+            if (!in_array($request->sector_id, auth()->user()->getAllowedSectorIds())) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No tiene permiso para crear bases en este sector.'
+                ], 403);
+            }
+        }
+
         try {
             return DB::transaction(function () use ($request) {
                 $base = Base::create($request->validated());
@@ -91,6 +132,8 @@ class BaseController extends Controller
      */
     public function show(Base $base): JsonResponse
     {
+        $this->checkSectorAccess($base);
+
         $base->load(['sector', 'basePersonas.persona', 'basePersonas.cargo', 'creator', 'updater']);
 
         return response()->json([
@@ -104,6 +147,8 @@ class BaseController extends Controller
      */
     public function update(UpdateBaseRequest $request, Base $base): JsonResponse
     {
+        $this->checkSectorAccess($base);
+
         try {
             return DB::transaction(function () use ($request, $base) {
                 // Actualizar datos básicos de la base
@@ -158,6 +203,8 @@ class BaseController extends Controller
      */
     public function destroy(Base $base): JsonResponse
     {
+        $this->checkSectorAccess($base);
+
         try {
             return DB::transaction(function () use ($base) {
                 $base->delete();
@@ -173,6 +220,21 @@ class BaseController extends Controller
                 'status' => 'error',
                 'message' => 'No se pudo eliminar la base'
             ], 500);
+        }
+    }
+
+    /**
+     * Check if the user has access to the base's sector.
+     */
+    private function checkSectorAccess(Base $base): void
+    {
+        if (!auth()->user()->hasPermissionTo('bases:list-all')) {
+            if (!in_array($base->sector_id, auth()->user()->getAllowedSectorIds())) {
+                abort(response()->json([
+                    'status' => 'error',
+                    'message' => 'No tiene permiso para gestionar bases de este sector.'
+                ], 403));
+            }
         }
     }
 

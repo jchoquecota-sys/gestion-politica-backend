@@ -22,6 +22,8 @@ class BasePersonalController extends Controller
      */
     public function index(Request $request, Base $base): JsonResponse
     {
+        $this->checkSectorAccess($base);
+
         $query = $base->basePersonas()
             ->with(['persona', 'cargo']);
 
@@ -42,6 +44,8 @@ class BasePersonalController extends Controller
      */
     public function store(Request $request, Base $base): JsonResponse
     {
+        $this->checkSectorAccess($base);
+
         $validated = $request->validate([
             'persona_id'    => 'required|exists:personas,id',
             'cargo_id'      => 'required|exists:cargos,id',
@@ -98,6 +102,7 @@ class BasePersonalController extends Controller
      */
     public function update(Request $request, Base $base, BasePersona $asignacion): JsonResponse
     {
+        $this->checkSectorAccess($base);
         $this->verificarPertenencia($asignacion, $base);
 
         $validated = $request->validate([
@@ -136,6 +141,7 @@ class BasePersonalController extends Controller
      */
     public function destroy(Base $base, BasePersona $asignacion): JsonResponse
     {
+        $this->checkSectorAccess($base);
         $this->verificarPertenencia($asignacion, $base);
 
         try {
@@ -153,6 +159,21 @@ class BasePersonalController extends Controller
     private function verificarPertenencia(BasePersona $asignacion, Base $base): void
     {
         abort_if($asignacion->base_id !== $base->id, 404, 'La asignación no pertenece a esta base.');
+    }
+
+    /**
+     * Check if the user has access to the base's sector.
+     */
+    private function checkSectorAccess(Base $base): void
+    {
+        if (!auth()->user()->hasPermissionTo('bases:list-all')) {
+            if (!in_array($base->sector_id, auth()->user()->getAllowedSectorIds())) {
+                abort(response()->json([
+                    'status' => 'error',
+                    'message' => 'No tiene permiso para gestionar personal de esta base.'
+                ], 403));
+            }
+        }
     }
 
     private function formatAsignacion(BasePersona $bp): array

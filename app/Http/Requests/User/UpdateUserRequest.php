@@ -24,9 +24,10 @@ class UpdateUserRequest extends FormRequest
                 'max:255',
                 Rule::unique('users')->ignore($this->route('user')),
             ],
-            'password' => ['sometimes', 'string', Password::min(8)],
-            'roles'    => ['sometimes', 'array'],
-            'roles.*'  => ['string', 'exists:roles,name'],
+            'password'   => ['sometimes', 'string', Password::min(8)],
+            'roles'      => ['sometimes', 'array'],
+            'roles.*'    => ['string', 'exists:roles,name'],
+            'persona_id' => ['nullable', 'integer', 'exists:personas,id'],
         ];
     }
 }

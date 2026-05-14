@@ -20,7 +20,7 @@ class UserController extends Controller
      */
     public function index(): JsonResponse
     {
-        $users = User::with('roles:id,name')
+        $users = User::with(['roles:id,name', 'persona'])
             ->orderBy('name')
             ->get()
             ->map(fn (User $user) => $this->formatUser($user));
@@ -36,7 +36,7 @@ class UserController extends Controller
      */
     public function show(User $user): JsonResponse
     {
-        $user->load('roles:id,name');
+        $user->load(['roles:id,name', 'persona']);
 
         return response()->json(['data' => $this->formatUser($user)]);
     }
@@ -51,16 +51,17 @@ class UserController extends Controller
     {
         return DB::transaction(function () use ($request) {
             $user = User::create([
-                'name'     => $request->name,
-                'email'    => $request->email,
-                'password' => Hash::make($request->password),
+                'name'       => $request->name,
+                'email'      => $request->email,
+                'password'   => Hash::make($request->password),
+                'persona_id' => $request->persona_id,
             ]);
 
             if ($request->filled('roles')) {
                 $user->assignRole($request->roles);
             }
 
-            $user->load('roles:id,name');
+            $user->load(['roles:id,name', 'persona']);
 
             return response()->json(
                 [
@@ -93,13 +94,17 @@ class UserController extends Controller
                 $user->password = Hash::make($request->password);
             }
 
+            if ($request->has('persona_id')) {
+                $user->persona_id = $request->persona_id;
+            }
+
             $user->save();
 
             if ($request->has('roles')) {
                 $user->syncRoles($request->roles);
             }
 
-            $user->load('roles:id,name');
+            $user->load(['roles:id,name', 'persona']);
 
             return response()->json([
                 'message' => 'Usuario actualizado exitosamente.',
@@ -148,6 +153,10 @@ class UserController extends Controller
             'email'       => $user->email,
             'roles'       => $user->roles->pluck('name')->values(),
             'permissions' => $user->getAllPermissions()->pluck('name')->values(),
+            'persona'     => $user->persona ? [
+                'id'              => $user->persona->id,
+                'nombre_completo' => $user->persona->nombre_completo,
+            ] : null,
             'created_at'  => $user->created_at->toISOString(),
         ];
     }

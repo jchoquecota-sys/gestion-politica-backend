@@ -20,6 +20,7 @@ class Persona extends Model
         'email',
         'direccion',
         'fecha_nacimiento',
+        'foto_path',
         'created_by',
         'updated_by',
         'deleted_by'

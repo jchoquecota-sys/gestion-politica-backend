@@ -10,95 +10,133 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class PersonaController extends Controller
 {
     /**
-     * Listar todas las personas con sus bases y sectores asociados.
+     * Listar todas las personas.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $personas = Persona::with([
-            'basePersonas.base.sector',
-            'basePersonas.cargo',
-            'sectorPersonas.sector',
-            'sectorPersonas.cargo',
-        ])->get();
+        $query = Persona::query();
+        $user = auth()->user();
+
+        if (!$user->hasPermissionTo('personas:list-all')) {
+            if ($user->hasPermissionTo('personas:list-only-sector')) {
+                $allowedSectors = $user->getAllowedSectorIds();
+                $query->where(function ($q) use ($allowedSectors, $user) {
+                    $q->whereHas('sectorPersonas', function ($sq) use ($allowedSectors) {
+                        $sq->whereIn('sector_id', $allowedSectors);
+                    })->orWhereHas('basePersonas.base', function ($bq) use ($allowedSectors) {
+                        $bq->whereIn('sector_id', $allowedSectors);
+                    })->orWhere('created_by', $user->id);
+                });
+            } else {
+                $allowedBases = $user->getAllowedBaseIds();
+                $query->where(function ($q) use ($allowedBases, $user) {
+                    $q->whereHas('basePersonas', function ($bq) use ($allowedBases) {
+                        $bq->whereIn('base_id', $allowedBases);
+                    })->orWhere('created_by', $user->id);
+                });
+            }
+        }
+
+        // Filtros explícitos
+        if ($request->has('sector_id')) {
+            $sectorId = (int) $request->sector_id;
+            if (!$user->hasPermissionTo('personas:list-all')) {
+                if (!in_array($sectorId, $user->getAllowedSectorIds())) {
+                    return response()->json(['status' => 'error', 'message' => 'No tiene permiso para filtrar por este sector.'], 403);
+                }
+            }
+            $query->where(function($q) use ($sectorId) {
+                $q->whereHas('sectorPersonas', fn($sq) => $sq->where('sector_id', $sectorId))
+                  ->orWhereHas('basePersonas.base', fn($bq) => $bq->where('sector_id', $sectorId));
+            });
+        }
+
+        if ($request->has('base_id')) {
+            $baseId = (int) $request->base_id;
+            if (!$user->hasPermissionTo('personas:list-all')) {
+                if ($user->hasPermissionTo('personas:list-only-sector')) {
+                    $base = \App\Models\Base::find($baseId);
+                    if (!$base || !in_array($base->sector_id, $user->getAllowedSectorIds())) {
+                        return response()->json(['status' => 'error', 'message' => 'No tiene permiso para filtrar por esta base.'], 403);
+                    }
+                } else {
+                    if (!in_array($baseId, $user->getAllowedBaseIds())) {
+                        return response()->json(['status' => 'error', 'message' => 'No tiene permiso para filtrar por esta base.'], 403);
+                    }
+                }
+            }
+            $query->whereHas('basePersonas', fn($bq) => $bq->where('base_id', $baseId));
+        }
+
+        // 3. Búsqueda Global (Opcional)
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('nombres', 'like', "%{$search}%")
+                  ->orWhere('apellidos', 'like', "%{$search}%")
+                  ->orWhere('dni', 'like', "%{$search}%");
+            });
+        }
+
+        // 4. Ordenamiento
+        $sortBy = $request->get('sort_by', 'created_at');
+        $sortOrder = $request->get('sort_order', 'desc');
+        $allowedSorts = ['nombres', 'apellidos', 'dni', 'created_at'];
+        
+        if (in_array($sortBy, $allowedSorts)) {
+            $query->orderBy($sortBy, $sortOrder);
+        }
+
+        // 5. Paginación
+        $perPage = $request->get('per_page', 15);
+        $paginator = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',
-            'data' => $personas->map(fn($p) => $this->formatResource($p))
+            'data'   => collect($paginator->items())->map(fn($p) => $this->formatResource($p)),
+            'meta'   => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+            ]
         ]);
     }
 
     /**
-     * Crear una nueva persona con vinculaciones opcionales.
+     * Crear una nueva persona.
      */
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'nombres'       => 'required|string|max:255',
-            'apellidos'     => 'required|string|max:255',
-            'dni'           => 'nullable|string|max:8|unique:personas,dni',
-            'celular'       => 'nullable|string|max:15',
-            'email'         => 'nullable|email|unique:personas,email',
-            'direccion'     => 'nullable|string',
+            'nombres'          => 'required|string|max:255',
+            'apellidos'        => 'required|string|max:255',
+            'dni'              => 'nullable|string|max:8|unique:personas,dni',
+            'celular'          => 'nullable|string|max:15',
+            'email'            => 'nullable|email|unique:personas,email',
+            'direccion'        => 'nullable|string',
             'fecha_nacimiento' => 'nullable|date',
-
-            // Vinculación opcional a una base
-            'base_id'       => 'nullable|exists:bases,id',
-            'cargo_base_id' => 'nullable|required_with:base_id|exists:cargos,id',
-
-            // Vinculación opcional a un sector
-            'sector_id'       => 'nullable|exists:sectores,id',
-            'cargo_sector_id' => 'nullable|required_with:sector_id|exists:cargos,id',
+            'foto'             => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
         try {
-            return DB::transaction(function () use ($validated) {
-                $persona = Persona::create([
-                    'nombres'          => $validated['nombres'],
-                    'apellidos'        => $validated['apellidos'],
-                    'dni'              => $validated['dni'] ?? null,
-                    'celular'          => $validated['celular'] ?? null,
-                    'email'            => $validated['email'] ?? null,
-                    'direccion'        => $validated['direccion'] ?? null,
-                    'fecha_nacimiento' => $validated['fecha_nacimiento'] ?? null,
-                ]);
+            if ($request->hasFile('foto')) {
+                $path = $request->file('foto')->store('personas', 'public');
+                $validated['foto_path'] = $path;
+            }
 
-                if (!empty($validated['base_id'])) {
-                    BasePersona::create([
-                        'base_id'    => $validated['base_id'],
-                        'persona_id' => $persona->id,
-                        'cargo_id'   => $validated['cargo_base_id'],
-                        'es_principal' => false,
-                        'fecha_inicio' => now()->toDateString(),
-                    ]);
-                }
+            $persona = Persona::create($validated);
 
-                if (!empty($validated['sector_id'])) {
-                    SectorPersona::create([
-                        'sector_id'  => $validated['sector_id'],
-                        'persona_id' => $persona->id,
-                        'cargo_id'   => $validated['cargo_sector_id'],
-                        'es_principal' => false,
-                        'fecha_inicio' => now()->toDateString(),
-                    ]);
-                }
-
-                $persona->load([
-                    'basePersonas.base.sector',
-                    'basePersonas.cargo',
-                    'sectorPersonas.sector',
-                    'sectorPersonas.cargo',
-                ]);
-
-                return response()->json([
-                    'status'  => 'success',
-                    'message' => 'Persona registrada correctamente',
-                    'data'    => $this->formatResource($persona)
-                ], 201);
-            });
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Persona registrada correctamente',
+                'data'    => $this->formatResource($persona)
+            ], 201);
         } catch (\Exception $e) {
             Log::error("Error al crear persona: " . $e->getMessage());
             return response()->json(['status' => 'error', 'message' => 'No se pudo registrar la persona.'], 500);
@@ -106,16 +144,11 @@ class PersonaController extends Controller
     }
 
     /**
-     * Ver detalle de una persona con todas sus vinculaciones.
+     * Ver detalle de una persona.
      */
     public function show(Persona $persona): JsonResponse
     {
-        $persona->load([
-            'basePersonas.base.sector',
-            'basePersonas.cargo',
-            'sectorPersonas.sector',
-            'sectorPersonas.cargo',
-        ]);
+        $this->checkPersonaAccess($persona);
 
         return response()->json([
             'status' => 'success',
@@ -124,81 +157,41 @@ class PersonaController extends Controller
     }
 
     /**
-     * Actualizar datos de una persona con vinculaciones opcionales.
+     * Actualizar datos de una persona.
      */
     public function update(Request $request, Persona $persona): JsonResponse
     {
+        $this->checkPersonaAccess($persona);
+
         $validated = $request->validate([
-            'nombres'       => 'required|string|max:255',
-            'apellidos'     => 'required|string|max:255',
-            'dni'           => "nullable|string|max:8|unique:personas,dni,{$persona->id}",
-            'celular'       => 'nullable|string|max:15',
-            'email'         => "nullable|email|unique:personas,email,{$persona->id}",
-            'direccion'     => 'nullable|string',
+            'nombres'          => 'required|string|max:255',
+            'apellidos'        => 'required|string|max:255',
+            'dni'              => "nullable|string|max:8|unique:personas,dni,{$persona->id}",
+            'celular'          => 'nullable|string|max:15',
+            'email'            => "nullable|email|unique:personas,email,{$persona->id}",
+            'direccion'        => 'nullable|string',
             'fecha_nacimiento' => 'nullable|date',
-
-            // Vinculación opcional a una base
-            'base_id'       => 'nullable|exists:bases,id',
-            'cargo_base_id' => 'nullable|required_with:base_id|exists:cargos,id',
-
-            // Vinculación opcional a un sector
-            'sector_id'       => 'nullable|exists:sectores,id',
-            'cargo_sector_id' => 'nullable|required_with:sector_id|exists:cargos,id',
+            'foto'             => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
         try {
-            return DB::transaction(function () use ($validated, $persona) {
-                $persona->update([
-                    'nombres'          => $validated['nombres'],
-                    'apellidos'        => $validated['apellidos'],
-                    'dni'              => $validated['dni'] ?? $persona->dni,
-                    'celular'          => $validated['celular'] ?? $persona->celular,
-                    'email'            => $validated['email'] ?? $persona->email,
-                    'direccion'        => $validated['direccion'] ?? $persona->direccion,
-                    'fecha_nacimiento' => $validated['fecha_nacimiento'] ?? $persona->fecha_nacimiento,
-                ]);
-
-                // Vincular a base (solo si no estaba ya)
-                if (!empty($validated['base_id'])) {
-                    BasePersona::withTrashed()->updateOrCreate(
-                        ['base_id' => $validated['base_id'], 'persona_id' => $persona->id],
-                        [
-                            'cargo_id'    => $validated['cargo_base_id'],
-                            'es_principal'=> false,
-                            'fecha_inicio'=> now()->toDateString(),
-                            'deleted_at'  => null,
-                            'deleted_by'  => null,
-                        ]
-                    );
+            if ($request->hasFile('foto')) {
+                // Eliminar foto anterior si existe
+                if ($persona->foto_path && Storage::disk('public')->exists($persona->foto_path)) {
+                    Storage::disk('public')->delete($persona->foto_path);
                 }
+                
+                $path = $request->file('foto')->store('personas', 'public');
+                $validated['foto_path'] = $path;
+            }
 
-                // Vincular a sector (solo si no estaba ya)
-                if (!empty($validated['sector_id'])) {
-                    SectorPersona::withTrashed()->updateOrCreate(
-                        ['sector_id' => $validated['sector_id'], 'persona_id' => $persona->id],
-                        [
-                            'cargo_id'    => $validated['cargo_sector_id'],
-                            'es_principal'=> false,
-                            'fecha_inicio'=> now()->toDateString(),
-                            'deleted_at'  => null,
-                            'deleted_by'  => null,
-                        ]
-                    );
-                }
+            $persona->update($validated);
 
-                $persona->load([
-                    'basePersonas.base.sector',
-                    'basePersonas.cargo',
-                    'sectorPersonas.sector',
-                    'sectorPersonas.cargo',
-                ]);
-
-                return response()->json([
-                    'status'  => 'success',
-                    'message' => 'Datos actualizados correctamente',
-                    'data'    => $this->formatResource($persona)
-                ]);
-            });
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Datos actualizados correctamente',
+                'data'    => $this->formatResource($persona)
+            ]);
         } catch (\Exception $e) {
             Log::error("Error al actualizar persona: " . $e->getMessage());
             return response()->json(['status' => 'error', 'message' => 'No se pudo actualizar la persona.'], 500);
@@ -210,6 +203,8 @@ class PersonaController extends Controller
      */
     public function destroy(Persona $persona): JsonResponse
     {
+        $this->checkPersonaAccess($persona);
+
         $persona->delete();
         return response()->json([
             'status'  => 'success',
@@ -218,7 +213,46 @@ class PersonaController extends Controller
     }
 
     /**
-     * Formatear el recurso con sus vinculaciones.
+     * Check if the user has access to manage this persona.
+     */
+    private function checkPersonaAccess(Persona $persona): void
+    {
+        $user = auth()->user();
+
+        if ($user->hasPermissionTo('personas:list-all')) {
+            return;
+        }
+
+        // Siempre puede acceder si es el creador (útil para cuando recién la crea y aún no la vincula)
+        if ($persona->created_by === $user->id) {
+            return;
+        }
+
+        if ($user->hasPermissionTo('personas:list-only-sector')) {
+            $allowedSectors = $user->getAllowedSectorIds();
+            $persona->loadMissing(['sectorPersonas', 'basePersonas.base']);
+            
+            $hasSector = $persona->sectorPersonas->whereIn('sector_id', $allowedSectors)->isNotEmpty();
+            $hasBaseInSector = $persona->basePersonas->filter(function($bp) use ($allowedSectors) {
+                return $bp->base && in_array($bp->base->sector_id, $allowedSectors);
+            })->isNotEmpty();
+
+            if (!$hasSector && !$hasBaseInSector) {
+                abort(response()->json(['status' => 'error', 'message' => 'No tiene permiso para gestionar esta persona.'], 403));
+            }
+        } else {
+            $allowedBases = $user->getAllowedBaseIds();
+            $persona->loadMissing('basePersonas');
+            $hasBase = $persona->basePersonas->whereIn('base_id', $allowedBases)->isNotEmpty();
+
+            if (!$hasBase) {
+                abort(response()->json(['status' => 'error', 'message' => 'No tiene permiso para gestionar esta persona.'], 403));
+            }
+        }
+    }
+
+    /**
+     * Formatear el recurso.
      */
     private function formatResource(Persona $persona): array
     {
@@ -232,25 +266,8 @@ class PersonaController extends Controller
             'email'           => $persona->email,
             'direccion'       => $persona->direccion,
             'fecha_nacimiento'=> $persona->fecha_nacimiento,
-            'bases'           => $persona->basePersonas->map(fn($bp) => [
-                'asignacion_id' => $bp->id,
-                'base_id'       => $bp->base->id,
-                'base_nombre'   => $bp->base->nombre,
-                'sector_nombre' => $bp->base->sector->nombre ?? null,
-                'cargo_id'      => $bp->cargo_id,
-                'cargo_nombre'  => $bp->cargo->nombre,
-                'es_principal'  => (bool) $bp->es_principal,
-                'fecha_inicio'  => $bp->fecha_inicio?->format('Y-m-d'),
-            ]),
-            'sectores'        => $persona->sectorPersonas->map(fn($sp) => [
-                'asignacion_id' => $sp->id,
-                'sector_id'     => $sp->sector->id,
-                'sector_nombre' => $sp->sector->nombre,
-                'cargo_id'      => $sp->cargo_id,
-                'cargo_nombre'  => $sp->cargo->nombre,
-                'es_principal'  => (bool) $sp->es_principal,
-                'fecha_inicio'  => $sp->fecha_inicio?->format('Y-m-d'),
-            ]),
+            'foto_path'       => $persona->foto_path,
+            'foto_url'        => $persona->foto_path ? Storage::disk('public')->url($persona->foto_path) : null,
             'created_at'      => $persona->created_at?->toDateTimeString(),
         ];
     }

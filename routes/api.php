@@ -26,6 +26,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
     Route::get('/me', [AuthController::class, 'me'])->name('api.me');
 
+    // ── Catálogos / Opciones (Públicos para autenticados) ─────────────────────
+    Route::prefix('opciones')->name('api.opciones.')->group(function () {
+        Route::get('/sectores', [App\Http\Controllers\Api\CatalogoController::class, 'sectores'])->name('sectores');
+        Route::get('/roles', [App\Http\Controllers\Api\CatalogoController::class, 'roles'])->name('roles');
+        Route::get('/cargos', [App\Http\Controllers\Api\CatalogoController::class, 'cargos'])->name('cargos');
+        Route::get('/personas', [App\Http\Controllers\Api\CatalogoController::class, 'personas'])->name('personas');
+        Route::get('/bases', [App\Http\Controllers\Api\CatalogoController::class, 'bases'])->name('bases');
+    });
+
     // ── Roles module ──────────────────────────────────────────────────────────
     // Each route is protected by its own granular permission.
     // The super-admin role bypasses all checks via Gate::before in AppServiceProvider.

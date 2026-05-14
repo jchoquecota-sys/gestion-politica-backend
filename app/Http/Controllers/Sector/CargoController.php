@@ -14,13 +14,34 @@ class CargoController extends Controller
     /**
      * Listar todos los cargos.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $cargos = Cargo::with(['creator', 'updater'])->get();
+        $query = Cargo::with(['creator', 'updater']);
+
+        // Búsqueda
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where('nombre', 'like', "%{$search}%");
+        }
+
+        // Ordenamiento
+        $sortBy = $request->get('sort_by', 'nombre');
+        $sortOrder = $request->get('sort_order', 'asc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        // Paginación
+        $perPage = $request->get('per_page', 15);
+        $paginator = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',
-            'data' => $cargos->map(fn($c) => $this->formatResource($c))
+            'data'   => collect($paginator->items())->map(fn($c) => $this->formatResource($c)),
+            'meta'   => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+            ]
         ]);
     }
 

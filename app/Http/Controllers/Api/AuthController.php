@@ -39,11 +39,12 @@ class AuthController extends Controller
         return response()->json([
             'token' => $token,
             'user'  => [
-                'id'          => $user->id,
-                'name'        => $user->name,
-                'email'       => $user->email,
-                'roles'       => $user->getRoleNames(),
-                'permissions' => $user->getAllPermissions()->pluck('name'),
+                'id'              => $user->id,
+                'name'            => $user->name,
+                'email'           => $user->email,
+                'roles'           => $user->getRoleNames(),
+                'permissions'     => $user->getAllPermissions()->pluck('name'),
+                'allowed_sectors' => $user->getAllowedSectorIds(),
             ],
         ], JsonResponse::HTTP_CREATED);
     }
@@ -77,11 +78,12 @@ class AuthController extends Controller
         return response()->json([
             'token' => $token,
             'user'  => [
-                'id'          => $user->id,
-                'name'        => $user->name,
-                'email'       => $user->email,
-                'roles'       => $user->getRoleNames(),
-                'permissions' => $user->getAllPermissions()->pluck('name'),
+                'id'              => $user->id,
+                'name'            => $user->name,
+                'email'           => $user->email,
+                'roles'           => $user->getRoleNames(),
+                'permissions'     => $user->getAllPermissions()->pluck('name'),
+                'allowed_sectors' => $user->getAllowedSectorIds(),
             ],
         ], JsonResponse::HTTP_OK);
     }
@@ -112,11 +114,12 @@ class AuthController extends Controller
 
         return response()->json([
             'user' => [
-                'id'          => $user->id,
-                'name'        => $user->name,
-                'email'       => $user->email,
-                'roles'       => $user->getRoleNames(),
-                'permissions' => $user->getAllPermissions()->pluck('name'),
+                'id'              => $user->id,
+                'name'            => $user->name,
+                'email'           => $user->email,
+                'roles'           => $user->getRoleNames(),
+                'permissions'     => $user->getAllPermissions()->pluck('name'),
+                'allowed_sectors' => $user->getAllowedSectorIds(),
             ],
         ], JsonResponse::HTTP_OK);
     }

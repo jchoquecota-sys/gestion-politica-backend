@@ -8,6 +8,7 @@ use App\Models\SectorPersona;
 use App\Http\Requests\Sector\StoreSectorRequest;
 use App\Http\Requests\Sector\UpdateSectorRequest;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -16,17 +17,38 @@ class SectorController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $sectores = Sector::with([
+        $query = Sector::with([
             'sectorPersonas.persona', 
             'sectorPersonas.cargo',
             'creator'
-        ])->get();
+        ]);
+
+        // Búsqueda
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where('nombre', 'like', "%{$search}%");
+        }
+
+        // Ordenamiento
+        $sortBy = $request->get('sort_by', 'created_at');
+        $sortOrder = $request->get('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        // Paginación
+        $perPage = $request->get('per_page', 15);
+        $paginator = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',
-            'data' => $sectores->map(fn($s) => $this->formatResource($s))
+            'data'   => collect($paginator->items())->map(fn($s) => $this->formatResource($s)),
+            'meta'   => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+            ]
         ]);
     }
 

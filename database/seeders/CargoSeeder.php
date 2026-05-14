@@ -13,10 +13,11 @@ class CargoSeeder extends Seeder
     public function run(): void
     {
         $cargos = [
-            ['nombre' => 'Responsable', 'descripcion' => 'Encargado principal del sector'],
-            ['nombre' => 'Colaborador', 'descripcion' => 'Apoyo en las actividades del sector'],
-            ['nombre' => 'Coordinador', 'descripcion' => 'Coordina actividades específicas'],
-            ['nombre' => 'Participante', 'descripcion' => 'Miembro general o afiliado a la base/sector'],
+            ['nombre' => 'Responsable', 'descripcion' => 'Encargado principal de la base o sector'],
+            ['nombre' => 'Secretario', 'descripcion' => 'Encargado de actas y documentos'],
+            ['nombre' => 'Coordinador', 'descripcion' => 'Coordina actividades específicas de la base'],
+            ['nombre' => 'Tesorero', 'descripcion' => 'Encargado de los fondos de la base'],
+            ['nombre' => 'Simpatizante', 'descripcion' => 'Miembro general de la base'],
         ];
 
         foreach ($cargos as $cargo) {

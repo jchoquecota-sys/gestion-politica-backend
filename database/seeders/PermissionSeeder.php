@@ -53,6 +53,8 @@ class PermissionSeeder extends Seeder
         'personas:delete',
         'personas:edit',
         'personas:list',
+        'personas:list-all',
+        'personas:list-only-sector',
         'personas:view',
 
         // ── Cargos module ────────────────────────────────────────────────────

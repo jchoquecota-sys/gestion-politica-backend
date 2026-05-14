@@ -105,6 +105,30 @@ Se ha implementado un middleware personalizado en `app/Http/Middleware/Authentic
 ### Gate Bypass (Super Admin)
 El rol `super-admin` está configurado en `AppServiceProvider.php` para saltarse todos los checks de permisos. Si un usuario tiene este rol, `can()` y `middleware('permission:...')` siempre retornarán `true`.
 
+### 6. Paginación y Estandarización de Listas
+Para garantizar el rendimiento a medida que crecen los datos, todos los endpoints de listado (`index`) deben implementar paginación profesional.
+
+**Parámetros aceptados:**
+*   `per_page`: Cantidad de registros por página (default: 15).
+*   `page`: Número de página actual.
+*   `search`: Término de búsqueda global (nombres, DNI, etc).
+*   `sort_by`: Campo por el cual ordenar (ej: `created_at`).
+*   `sort_order`: Dirección del orden (`asc` o `desc`).
+
+**Estructura de Respuesta Estándar:**
+```json
+{
+    "status": "success",
+    "data": [...],
+    "meta": {
+        "current_page": 1,
+        "last_page": 10,
+        "per_page": 15,
+        "total": 150
+    }
+}
+```
+
 ---
 
 ## 🚀 Buenas Prácticas de Escalabilidad

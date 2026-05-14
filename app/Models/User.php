@@ -11,8 +11,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'persona_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -36,5 +37,45 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Get the persona associated with the user.
+     */
+    public function persona(): BelongsTo
+    {
+        return $this->belongsTo(Persona::class);
+    }
+
+    /**
+     * Get an array of sector IDs the user has access to, based on their persona.
+     */
+    public function getAllowedSectorIds(): array
+    {
+        if (!$this->persona_id) {
+            return [];
+        }
+
+        $persona = $this->persona;
+
+        // Sectors assigned directly
+        $directSectorIds = $persona->sectorPersonas()->pluck('sector_id')->toArray();
+
+        // Sectors from assigned bases
+        $baseSectorIds = \App\Models\Base::whereIn('id', $persona->basePersonas()->pluck('base_id'))
+                            ->pluck('sector_id')->toArray();
+
+        return array_unique(array_merge($directSectorIds, $baseSectorIds));
+    }
+    /**
+     * Get an array of base IDs the user has direct access to, based on their persona.
+     */
+    public function getAllowedBaseIds(): array
+    {
+        if (!$this->persona_id) {
+            return [];
+        }
+
+        return $this->persona->basePersonas()->pluck('base_id')->toArray();
     }
 }
