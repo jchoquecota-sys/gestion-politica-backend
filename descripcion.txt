@@ -1,0 +1,44 @@
+Sistema de Gestión de Campaña y Simpatizantes (SGCS)
+Objetivo General
+Centralizar y organizar la estructura territorial de una campaña política, permitiendo el control detallado de los simpatizantes, la jerarquía de las bases operativas y el seguimiento de las actividades de campo mediante evidencias digitales.
+
+1. Estructura Organizativa (Territorial)
+El sistema se basa en una jerarquía geográfica y operativa para segmentar el trabajo:
+
+Sectores: Representan las zonas del distrito (Juntas Vecinales o zonas conocidas). Cada sector cuenta con un equipo responsable (Encargado, Secretario y Coordinadores).
+
+Bases: Puntos neurálgicos físicos (casas o locales) ubicados dentro de un Sector. Tienen su propia directiva (Responsable, Secretario, Coordinador) y agrupan a los simpatizantes de esa zona específica.
+
+2. Gestión de Simpatizantes
+Registro Centralizado: Padrón de personas con datos básicos de contacto y ubicación.
+
+Vinculación: Cada simpatizante puede pertenecer a un sector o estar asignado a una base específica para facilitar la movilización.
+
+3. Control de Actividades y Participación
+Este módulo gestiona la operatividad de la campaña:
+
+Creación de Eventos: Registro de reuniones, caminatas o mítines con datos de fecha, tipo y descripción.
+
+Asignación de Responsabilidades: Una actividad puede ser asignada a un Sector completo, a una Base específica o a Personas individuales.
+
+Registro de Asistencia y Evidencia:
+
+Control de asistencia de los simpatizantes a la actividad.
+
+Reporte individual: Espacio para que cada participante detalle su labor (texto largo).
+
+Repositorio multimedia: Carga de fotos y documentos como evidencia del cumplimiento de la actividad.
+
+4. Seguridad y Modelo de Permisos
+El sistema implementa un control de acceso basado en roles (RBAC) con jerarquía de datos:
+
+Administrador Global: Acceso total a todos los sectores, bases y personas del sistema.
+
+Coordinador de Sector: Solo puede visualizar y gestionar la información (simpatizantes y actividades) de su sector asignado.
+
+Responsable de Base: Acceso restringido únicamente a los datos y participantes de su base específica.
+
+Gestión de Módulos: Permisos granulares para Crear, Editar o Solo Lectura según el perfil del usuario.
+
+Resumen del Flujo de Datos
+El sistema permite que la estrategia política baje desde los Sectores hacia las Bases, asegurando que cada Actividad genere evidencia verificable y que cada Usuario vea únicamente lo que le corresponde según su nivel de responsabilidad territorial.

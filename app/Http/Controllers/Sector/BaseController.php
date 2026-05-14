@@ -33,7 +33,13 @@ class BaseController extends Controller
             if (empty($allowedSectors)) {
                 return response()->json([
                     'status' => 'success',
-                    'data' => []
+                    'data'   => [],
+                    'meta'   => [
+                        'current_page' => 1,
+                        'last_page'    => 1,
+                        'per_page'     => (int) $request->get('per_page', 15),
+                        'total'        => 0,
+                    ],
                 ]);
             }
 

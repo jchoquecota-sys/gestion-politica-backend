@@ -179,19 +179,29 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // ── Actividades module ────────────────────────────────────────────────────
-    Route::get('tipos-actividad', [App\Http\Controllers\Actividad\TipoActividadController::class, 'index'])
-        ->name('api.tipos-actividad.index');
-    Route::post('tipos-actividad', [App\Http\Controllers\Actividad\TipoActividadController::class, 'store'])
-        ->name('api.tipos-actividad.store');
+    Route::prefix('tipos-actividad')->name('api.tipos-actividad.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Actividad\TipoActividadController::class, 'index'])
+            ->middleware('permission:actividades:list')
+            ->name('index');
+        Route::post('/', [App\Http\Controllers\Actividad\TipoActividadController::class, 'store'])
+            ->middleware('permission:actividades:create')
+            ->name('store');
+        Route::put('/{tipoActividad}', [App\Http\Controllers\Actividad\TipoActividadController::class, 'update'])
+            ->middleware('permission:actividades:edit')
+            ->name('update');
+        Route::delete('/{tipoActividad}', [App\Http\Controllers\Actividad\TipoActividadController::class, 'destroy'])
+            ->middleware('permission:actividades:delete')
+            ->name('destroy');
+    });
 
     Route::apiResource('actividades', App\Http\Controllers\Actividad\ActividadController::class)
         ->names('api.actividades')
         ->parameters(['actividades' => 'actividad'])
         ->middleware([
-            'index' => 'permission:actividades:list',
-            'store' => 'permission:actividades:create',
-            'show' => 'permission:actividades:view',
-            'update' => 'permission:actividades:edit',
+            'index'   => 'permission:actividades:list',
+            'store'   => 'permission:actividades:create',
+            'show'    => 'permission:actividades:view',
+            'update'  => 'permission:actividades:edit',
             'destroy' => 'permission:actividades:delete',
         ]);
 });

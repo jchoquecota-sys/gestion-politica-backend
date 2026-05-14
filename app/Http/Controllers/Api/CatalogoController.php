@@ -13,16 +13,20 @@ use Illuminate\Http\Request;
 
 class CatalogoController extends Controller
 {
+    /**
+     * Listado de sectores para selects.
+     * Respeta permisos del usuario — solo devuelve los sectores a los que tiene acceso.
+     */
     public function sectores(Request $request): JsonResponse
     {
         $query = Sector::select('id', 'nombre');
-        $user = auth()->user();
+        $user  = auth()->user();
 
-        $hasGlobalAccess = $user->hasPermissionTo('bases:list-all') 
+        $hasGlobalAccess = $user->hasPermissionTo('bases:list-all')
                         || $user->hasPermissionTo('sectores:list')
-                        || $user->hasPermissionTo('personas:list-all');
+                        || $user->hasPermissionTo('personas:list-all')
+                        || $user->hasPermissionTo('actividades:manage-all');
 
-        // Filtrar sectores permitidos si el usuario no tiene permisos globales
         if (!$hasGlobalAccess) {
             $allowedSectors = $user->getAllowedSectorIds();
             $query->whereIn('id', $allowedSectors);
@@ -31,49 +35,103 @@ class CatalogoController extends Controller
         return response()->json(['data' => $query->orderBy('nombre')->get()]);
     }
 
+    /**
+     * Listado de roles para selects.
+     */
     public function roles(): JsonResponse
     {
         $roles = Role::select('id', 'name')->orderBy('name')->get();
         return response()->json(['data' => $roles]);
     }
 
+    /**
+     * Listado de cargos para selects.
+     */
     public function cargos(): JsonResponse
     {
         $cargos = Cargo::select('id', 'nombre')->orderBy('nombre')->get();
         return response()->json(['data' => $cargos]);
     }
 
+    /**
+     * Listado de personas para selects.
+     * Respeta permisos del usuario — solo devuelve personas a las que tiene acceso.
+     */
     public function personas(): JsonResponse
     {
-        $personas = Persona::select('id', 'nombres', 'apellidos', 'dni')
-            ->orderBy('nombres')
-            ->get()
-            ->map(function ($persona) {
-                return [
-                    'id' => $persona->id,
-                    'nombre_completo' => $persona->nombre_completo,
-                    'dni' => $persona->dni
-                ];
-            });
+        $user  = auth()->user();
+        $query = Persona::select('id', 'nombres', 'apellidos', 'dni');
+
+        $hasGlobalAccess = $user->hasPermissionTo('personas:list-all')
+                        || $user->hasPermissionTo('actividades:manage-all');
+
+        $hasSectorAccess = $user->hasPermissionTo('personas:list-only-sector')
+                        || $user->hasPermissionTo('actividades:manage-sector');
+
+        $hasBaseAccess = $user->hasPermissionTo('actividades:manage-base');
+
+        // Aplicar filtro de scope si el usuario no tiene acceso global
+        if (!$hasGlobalAccess) {
+            if ($hasSectorAccess) {
+                $allowedSectors = $user->getAllowedSectorIds();
+                $query->where(function ($q) use ($allowedSectors) {
+                    $q->whereHas('sectorPersonas', fn($sq) => $sq->whereIn('sector_id', $allowedSectors))
+                      ->orWhereHas('basePersonas.base', fn($bq) => $bq->whereIn('sector_id', $allowedSectors));
+                });
+            } elseif ($hasBaseAccess) {
+                $allowedBases = $user->getAllowedBaseIds();
+                $query->whereHas('basePersonas', fn($bq) => $bq->whereIn('base_id', $allowedBases));
+            } else {
+                // Usuario raso: Solo puede verse a sí mismo
+                if ($user->persona_id) {
+                    $query->where('id', $user->persona_id);
+                } else {
+                    // Si el usuario no tiene persona vinculada, no devolverá resultados
+                    $query->whereRaw('1 = 0');
+                }
+            }
+        }
+
+        $personas = $query->orderBy('nombres')->get()->map(fn($persona) => [
+            'id'             => $persona->id,
+            'nombre_completo'=> $persona->nombre_completo,
+            'nombres'        => $persona->nombres,
+            'apellidos'      => $persona->apellidos,
+            'dni'            => $persona->dni,
+        ]);
 
         return response()->json(['data' => $personas]);
     }
 
+    /**
+     * Listado de bases para selects.
+     * Respeta permisos del usuario — solo devuelve bases de sectores permitidos.
+     */
     public function bases(Request $request): JsonResponse
     {
         $query = Base::select('id', 'nombre', 'sector_id');
+        $user  = auth()->user();
+
+        $hasGlobalAccess = $user->hasPermissionTo('bases:list-all')
+                        || $user->hasPermissionTo('personas:list-all')
+                        || $user->hasPermissionTo('actividades:manage-all');
+
+        $hasSectorAccess = $user->hasPermissionTo('sectores:list')
+                        || $user->hasPermissionTo('personas:list-only-sector')
+                        || $user->hasPermissionTo('actividades:manage-sector');
 
         if ($request->has('sector_id')) {
             $query->where('sector_id', $request->sector_id);
         }
 
-        $user = auth()->user();
-        $hasGlobalAccess = $user->hasPermissionTo('bases:list-all') 
-                        || $user->hasPermissionTo('personas:list-all');
-
         if (!$hasGlobalAccess) {
-            $allowedSectors = $user->getAllowedSectorIds();
-            $query->whereIn('sector_id', $allowedSectors);
+            if ($hasSectorAccess) {
+                $allowedSectors = $user->getAllowedSectorIds();
+                $query->whereIn('sector_id', $allowedSectors);
+            } else {
+                $allowedBases = $user->getAllowedBaseIds();
+                $query->whereIn('id', $allowedBases);
+            }
         }
 
         return response()->json(['data' => $query->orderBy('nombre')->get()]);

@@ -45,6 +45,7 @@ class AuthController extends Controller
                 'roles'           => $user->getRoleNames(),
                 'permissions'     => $user->getAllPermissions()->pluck('name'),
                 'allowed_sectors' => $user->getAllowedSectorIds(),
+                'allowed_bases'   => $user->getAllowedBaseIds(),
             ],
         ], JsonResponse::HTTP_CREATED);
     }
@@ -84,6 +85,7 @@ class AuthController extends Controller
                 'roles'           => $user->getRoleNames(),
                 'permissions'     => $user->getAllPermissions()->pluck('name'),
                 'allowed_sectors' => $user->getAllowedSectorIds(),
+                'allowed_bases'   => $user->getAllowedBaseIds(),
             ],
         ], JsonResponse::HTTP_OK);
     }
@@ -120,6 +122,7 @@ class AuthController extends Controller
                 'roles'           => $user->getRoleNames(),
                 'permissions'     => $user->getAllPermissions()->pluck('name'),
                 'allowed_sectors' => $user->getAllowedSectorIds(),
+                'allowed_bases'   => $user->getAllowedBaseIds(),
             ],
         ], JsonResponse::HTTP_OK);
     }

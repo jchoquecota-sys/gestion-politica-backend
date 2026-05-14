@@ -7,25 +7,58 @@ use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
     /**
-     * List all users with their roles.
+     * List all users with their roles (paginated).
      *
      * GET /api/users
      * Permission: users:list
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $users = User::with(['roles:id,name', 'persona'])
-            ->orderBy('name')
-            ->get()
-            ->map(fn (User $user) => $this->formatUser($user));
+        $query = User::with(['roles:id,name', 'persona']);
 
-        return response()->json(['data' => $users]);
+        // Búsqueda global
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        // Filtro por rol
+        if ($request->filled('role')) {
+            $query->role($request->role);
+        }
+
+        // Ordenamiento
+        $sortBy    = $request->get('sort_by', 'name');
+        $sortOrder = $request->get('sort_order', 'asc');
+        $allowed   = ['name', 'email', 'created_at'];
+        if (in_array($sortBy, $allowed)) {
+            $query->orderBy($sortBy, $sortOrder);
+        }
+
+        // Paginación
+        $perPage   = (int) $request->get('per_page', 15);
+        $paginator = $query->paginate($perPage);
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => collect($paginator->items())->map(fn(User $u) => $this->formatUser($u)),
+            'meta'   => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+            ],
+        ]);
     }
 
     /**
@@ -129,7 +162,7 @@ class UserController extends Controller
             );
         }
 
-        // Prevent deletion of the initial super-admin if needed
+        // Prevent deletion of the last super-admin
         if ($user->hasRole('super-admin') && User::role('super-admin')->count() <= 1) {
             return response()->json(
                 ['message' => 'No se puede eliminar el último super-admin.'],

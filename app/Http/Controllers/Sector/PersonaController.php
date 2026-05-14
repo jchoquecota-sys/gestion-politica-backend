@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Persona;
 use App\Models\BasePersona;
 use App\Models\SectorPersona;
+use App\Http\Requests\Sector\StorePersonaRequest;
+use App\Http\Requests\Sector\UpdatePersonaRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -111,18 +113,9 @@ class PersonaController extends Controller
     /**
      * Crear una nueva persona.
      */
-    public function store(Request $request): JsonResponse
+    public function store(StorePersonaRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'nombres'          => 'required|string|max:255',
-            'apellidos'        => 'required|string|max:255',
-            'dni'              => 'nullable|string|max:8|unique:personas,dni',
-            'celular'          => 'nullable|string|max:15',
-            'email'            => 'nullable|email|unique:personas,email',
-            'direccion'        => 'nullable|string',
-            'fecha_nacimiento' => 'nullable|date',
-            'foto'             => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-        ]);
+        $validated = $request->validated();
 
         try {
             if ($request->hasFile('foto')) {
@@ -159,20 +152,11 @@ class PersonaController extends Controller
     /**
      * Actualizar datos de una persona.
      */
-    public function update(Request $request, Persona $persona): JsonResponse
+    public function update(UpdatePersonaRequest $request, Persona $persona): JsonResponse
     {
         $this->checkPersonaAccess($persona);
 
-        $validated = $request->validate([
-            'nombres'          => 'required|string|max:255',
-            'apellidos'        => 'required|string|max:255',
-            'dni'              => "nullable|string|max:8|unique:personas,dni,{$persona->id}",
-            'celular'          => 'nullable|string|max:15',
-            'email'            => "nullable|email|unique:personas,email,{$persona->id}",
-            'direccion'        => 'nullable|string',
-            'fecha_nacimiento' => 'nullable|date',
-            'foto'             => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-        ]);
+        $validated = $request->validated();
 
         try {
             if ($request->hasFile('foto')) {

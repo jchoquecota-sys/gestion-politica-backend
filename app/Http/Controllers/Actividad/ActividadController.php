@@ -78,7 +78,52 @@ class ActividadController extends Controller
             }
         }
 
-        // 2. Filtros adicionales
+        // 2. Filtros adicionales explícitos
+        if ($request->has('sector_id') && $request->sector_id) {
+            $sectorId = (int) $request->sector_id;
+            // Verificar si tiene permiso para filtrar por este sector
+            if (!$user->hasPermissionTo('actividades:manage-all')) {
+                if (!in_array($sectorId, $user->getAllowedSectorIds())) {
+                    abort(response()->json(['status' => 'error', 'message' => 'No tiene permiso para filtrar por este sector.'], 403));
+                }
+            }
+            $basesIds = Base::where('sector_id', $sectorId)->pluck('id')->toArray();
+            
+            $query->whereHas('sujetos', function($q) use ($sectorId, $basesIds) {
+                $q->where(function($sq) use ($sectorId, $basesIds) {
+                    $sq->where(fn($ss) => $ss->where('sujeto_type', Sector::class)->where('sujeto_id', $sectorId))
+                       ->orWhere(fn($sb) => $sb->where('sujeto_type', Base::class)->whereIn('sujeto_id', $basesIds))
+                       ->orWhere(fn($sp) => $sp->where('sujeto_type', Persona::class)->whereHasMorph('sujeto', [Persona::class], function($pq) use ($sectorId, $basesIds) {
+                           $pq->whereHas('sectorPersonas', fn($ssp) => $ssp->where('sector_id', $sectorId))
+                              ->orWhereHas('basePersonas', fn($bp) => $bp->whereIn('base_id', $basesIds));
+                       }));
+                });
+            });
+        } elseif ($request->has('base_id') && $request->base_id) {
+            $baseId = (int) $request->base_id;
+            // Verificar si tiene permiso para filtrar por esta base
+            if (!$user->hasPermissionTo('actividades:manage-all')) {
+                if ($user->hasPermissionTo('actividades:manage-sector')) {
+                    $base = Base::find($baseId);
+                    if (!$base || !in_array($base->sector_id, $user->getAllowedSectorIds())) {
+                        abort(response()->json(['status' => 'error', 'message' => 'No tiene permiso para filtrar por esta base.'], 403));
+                    }
+                } else {
+                    if (!in_array($baseId, $user->getAllowedBaseIds())) {
+                        abort(response()->json(['status' => 'error', 'message' => 'No tiene permiso para filtrar por esta base.'], 403));
+                    }
+                }
+            }
+            $query->whereHas('sujetos', function($q) use ($baseId) {
+                $q->where(function($sq) use ($baseId) {
+                    $sq->where(fn($sb) => $sb->where('sujeto_type', Base::class)->where('sujeto_id', $baseId))
+                       ->orWhere(fn($sp) => $sp->where('sujeto_type', Persona::class)->whereHasMorph('sujeto', [Persona::class], function($pq) use ($baseId) {
+                           $pq->whereHas('basePersonas', fn($bp) => $bp->where('base_id', $baseId));
+                       }));
+                });
+            });
+        }
+
         if ($request->has('tipo_actividad_id')) {
             $query->where('tipo_actividad_id', $request->tipo_actividad_id);
         }
@@ -87,7 +132,7 @@ class ActividadController extends Controller
             $query->where('estado', $request->estado);
         }
 
-        if ($request->has('search')) {
+        if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('titulo', 'like', "%{$search}%")

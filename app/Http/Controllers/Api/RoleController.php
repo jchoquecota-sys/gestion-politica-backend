@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Role\StoreRoleRequest;
 use App\Http\Requests\Role\UpdateRoleRequest;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -13,19 +14,39 @@ use Spatie\Permission\Models\Role;
 class RoleController extends Controller
 {
     /**
-     * List all roles with their associated permissions.
+     * List all roles with their associated permissions (paginated).
      *
      * GET /api/roles
      * Permission: roles:list
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $roles = Role::with('permissions:id,name')
-            ->orderBy('name')
-            ->get()
-            ->map(fn (Role $role) => $this->formatRole($role));
+        $query = Role::with('permissions:id,name');
 
-        return response()->json(['data' => $roles]);
+        // Búsqueda por nombre
+        if ($request->filled('search')) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+
+        // Ordenamiento
+        $sortBy    = $request->get('sort_by', 'name');
+        $sortOrder = $request->get('sort_order', 'asc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        // Paginación
+        $perPage   = (int) $request->get('per_page', 15);
+        $paginator = $query->paginate($perPage);
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => collect($paginator->items())->map(fn(Role $role) => $this->formatRole($role)),
+            'meta'   => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+            ],
+        ]);
     }
 
     /**
