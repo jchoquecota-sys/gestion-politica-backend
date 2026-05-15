@@ -204,4 +204,23 @@ Route::middleware('auth:sanctum')->group(function () {
             'update'  => 'permission:actividades:edit',
             'destroy' => 'permission:actividades:delete',
         ]);
+
+    // ── Actividad Sujetos (Participantes/Ejecución) ──────────────────────────
+    Route::prefix('actividad-sujetos')->name('api.actividad-sujetos.')->group(function () {
+        Route::post('/{actividad}/asignar', [App\Http\Controllers\Actividad\ActividadSujetoController::class, 'store'])
+            ->middleware('permission:actividades:edit')
+            ->name('store');
+        
+        Route::put('/{asignacion}', [App\Http\Controllers\Actividad\ActividadSujetoController::class, 'update'])
+            ->middleware('permission:actividades:edit')
+            ->name('update');
+            
+        Route::delete('/{asignacion}', [App\Http\Controllers\Actividad\ActividadSujetoController::class, 'destroy'])
+            ->middleware('permission:actividades:edit')
+            ->name('destroy');
+    });
+
+    // ── Dashboard ───────────────────────────────────────────────────────────
+    Route::get('/dashboard/stats', [\App\Http\Controllers\Api\DashboardController::class, 'getStats']);
+    Route::get('/dashboard/map', [\App\Http\Controllers\Api\DashboardController::class, 'getMapData']);
 });

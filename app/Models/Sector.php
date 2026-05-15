@@ -28,8 +28,7 @@ class Sector extends Model
     {
         return $this->belongsToMany(Persona::class, 'sector_personas')
             ->withPivot(['id', 'cargo_id', 'es_principal', 'fecha_inicio', 'fecha_fin', 'observaciones'])
-            ->withTimestamps()
-            ->whereNull('sector_personas.deleted_at');
+            ->withTimestamps();
     }
 
     public function sectorPersonas(): HasMany

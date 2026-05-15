@@ -64,6 +64,10 @@ class PermissionSeeder extends Seeder
         'cargos:list',
         'cargos:view',
 
+        // ── Dashboard ────────────────────────────────────────────────────────
+        'dashboard:view',
+        'dashboard:view-all',
+
         // ── Bases module ─────────────────────────────────────────────────────
         'bases:create',
         'bases:delete',

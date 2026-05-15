@@ -21,7 +21,7 @@ class StoreActividadRequest extends FormRequest
             'estado' => 'required|in:borrador,creada,cancelada',
             
             // Sujetos vinculados
-            'sujetos' => 'required|array|min:1',
+            'sujetos' => 'nullable|array',
             'sujetos.*.sujeto_id' => 'required|integer',
             'sujetos.*.sujeto_type' => 'required|in:persona,base,sector',
             'sujetos.*.descripcion_ejecucion' => 'nullable|string',

@@ -176,15 +176,17 @@ class ActividadController extends Controller
                     'created_by' => auth()->id(),
                 ]);
 
-                foreach ($request->sujetos as $sujetoData) {
-                    ActividadSujeto::create([
-                        'actividad_id' => $actividad->id,
-                        'sujeto_id' => $sujetoData['sujeto_id'],
-                        'sujeto_type' => $this->mapSujetoType($sujetoData['sujeto_type']),
-                        'descripcion_ejecucion' => $sujetoData['descripcion_ejecucion'] ?? null,
-                        'evidencias' => $sujetoData['evidencias'] ?? null,
-                        'created_by' => auth()->id(),
-                    ]);
+                if ($request->has('sujetos') && is_array($request->sujetos)) {
+                    foreach ($request->sujetos as $sujetoData) {
+                        ActividadSujeto::create([
+                            'actividad_id' => $actividad->id,
+                            'sujeto_id' => $sujetoData['sujeto_id'],
+                            'sujeto_type' => $this->mapSujetoType($sujetoData['sujeto_type']),
+                            'descripcion_ejecucion' => $sujetoData['descripcion_ejecucion'] ?? null,
+                            'evidencias' => $sujetoData['evidencias'] ?? null,
+                            'created_by' => auth()->id(),
+                        ]);
+                    }
                 }
 
                 return response()->json([
