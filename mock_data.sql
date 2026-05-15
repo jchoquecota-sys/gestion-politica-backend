@@ -1,5 +1,6 @@
 -- mock_data.sql (VERSIÓN PROFESIONAL HETEROGÉNEA - TACNA)
 -- 150 Personas, 19 Bases, Irregularidad Territorial y Cronológica.
+-- php artisan tinker --execute="DB::unprepared(file_get_contents('mock_data.sql'));"
 
 SET FOREIGN_KEY_CHECKS = 0;
 

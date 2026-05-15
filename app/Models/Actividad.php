@@ -20,6 +20,8 @@ class Actividad extends Model
         'fecha_actividad',
         'tipo_actividad_id',
         'estado',
+        'es_publica',
+        'foto_portada_path',
         'created_by',
         'updated_by',
         'deleted_by'
@@ -27,6 +29,7 @@ class Actividad extends Model
 
     protected $casts = [
         'fecha_actividad' => 'datetime',
+        'es_publica'      => 'boolean',
     ];
 
     public function tipoActividad(): BelongsTo

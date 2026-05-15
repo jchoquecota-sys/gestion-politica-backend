@@ -14,6 +14,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 
 class ActividadController extends Controller
 {
@@ -167,17 +169,29 @@ class ActividadController extends Controller
     {
         return DB::transaction(function () use ($request) {
             try {
+                $fotoPortadaPath = null;
+                if ($request->hasFile('foto_portada')) {
+                    $fotoPortadaPath = $request->file('foto_portada')->store('actividades/portadas', 'public');
+                }
+
                 $actividad = Actividad::create([
-                    'titulo' => $request->titulo,
-                    'descripcion' => $request->descripcion,
-                    'fecha_actividad' => $request->fecha_actividad,
+                    'titulo'            => $request->titulo,
+                    'descripcion'       => $request->descripcion,
+                    'fecha_actividad'   => $request->fecha_actividad,
                     'tipo_actividad_id' => $request->tipo_actividad_id,
-                    'estado' => $request->estado,
-                    'created_by' => auth()->id(),
+                    'estado'            => $request->estado,
+                    'es_publica'        => $request->boolean('es_publica', false),
+                    'foto_portada_path' => $fotoPortadaPath,
+                    'created_by'        => auth()->id(),
                 ]);
 
-                if ($request->has('sujetos') && is_array($request->sujetos)) {
-                    foreach ($request->sujetos as $sujetoData) {
+                $sujetos = $request->sujetos;
+                if (is_string($sujetos)) {
+                    $sujetos = json_decode($sujetos, true);
+                }
+
+                if (is_array($sujetos)) {
+                    foreach ($sujetos as $sujetoData) {
                         ActividadSujeto::create([
                             'actividad_id' => $actividad->id,
                             'sujeto_id' => $sujetoData['sujeto_id'],
@@ -188,6 +202,8 @@ class ActividadController extends Controller
                         ]);
                     }
                 }
+
+                Cache::forget('public_landing_data');
 
                 return response()->json([
                     'status' => 'success',
@@ -224,14 +240,36 @@ class ActividadController extends Controller
 
         return DB::transaction(function () use ($request, $actividad) {
             try {
-                $actividad->update($request->only([
-                    'titulo', 'descripcion', 'fecha_actividad', 'tipo_actividad_id', 'estado'
-                ]));
+                $updateData = $request->only([
+                    'titulo', 'descripcion', 'fecha_actividad',
+                    'tipo_actividad_id', 'estado'
+                ]);
 
-                if ($request->has('sujetos')) {
+                if ($request->hasFile('foto_portada')) {
+                    // Eliminar foto anterior si existe
+                    if ($actividad->foto_portada_path) {
+                        Storage::disk('public')->delete($actividad->foto_portada_path);
+                    }
+                    $updateData['foto_portada_path'] = $request->file('foto_portada')->store('actividades/portadas', 'public');
+                }
+
+                $actividad->update($updateData);
+
+                // Actualizar campo booleano por separado para evitar problemas con `only()`
+                if ($request->has('es_publica')) {
+                    $actividad->es_publica = $request->boolean('es_publica');
+                    $actividad->save();
+                }
+
+                $sujetos = $request->sujetos;
+                if (is_string($sujetos)) {
+                    $sujetos = json_decode($sujetos, true);
+                }
+
+                if (is_array($sujetos)) {
                     // Por simplicidad, reemplazamos los sujetos. En una app real podrías hacer un sync.
                     $actividad->sujetos()->delete();
-                    foreach ($request->sujetos as $sujetoData) {
+                    foreach ($sujetos as $sujetoData) {
                         ActividadSujeto::create([
                             'actividad_id' => $actividad->id,
                             'sujeto_id' => $sujetoData['sujeto_id'],
@@ -242,6 +280,8 @@ class ActividadController extends Controller
                         ]);
                     }
                 }
+
+                Cache::forget('public_landing_data');
 
                 return response()->json([
                     'status' => 'success',
@@ -264,6 +304,7 @@ class ActividadController extends Controller
 
         try {
             $actividad->delete();
+            Cache::forget('public_landing_data');
             return response()->json([
                 'status' => 'success',
                 'message' => 'Actividad eliminada correctamente'
@@ -338,22 +379,27 @@ class ActividadController extends Controller
     private function formatResource(Actividad $actividad): array
     {
         return [
-            'id' => $actividad->id,
-            'titulo' => $actividad->titulo,
-            'descripcion' => $actividad->descripcion,
-            'fecha_actividad' => $actividad->fecha_actividad?->toDateTimeString(),
-            'tipo_actividad' => [
-                'id' => $actividad->tipoActividad?->id,
+            'id'               => $actividad->id,
+            'titulo'           => $actividad->titulo,
+            'descripcion'      => $actividad->descripcion,
+            'fecha_actividad'  => $actividad->fecha_actividad?->toDateTimeString(),
+            'tipo_actividad'   => [
+                'id'     => $actividad->tipoActividad?->id,
                 'nombre' => $actividad->tipoActividad?->nombre,
             ],
-            'estado' => $actividad->estado,
+            'estado'           => $actividad->estado,
+            'es_publica'       => (bool) $actividad->es_publica,
+            'foto_portada_path' => $actividad->foto_portada_path,
+            'foto_portada_url' => $actividad->foto_portada_path
+                ? \Illuminate\Support\Facades\Storage::disk('public')->url($actividad->foto_portada_path)
+                : null,
             'sujetos' => $actividad->sujetos->map(fn($as) => [
-                'id' => $as->id,
-                'sujeto_id' => $as->sujeto_id,
-                'sujeto_type' => strtolower(class_basename($as->sujeto_type)),
-                'nombre_sujeto' => $this->getSujetoName($as),
+                'id'                   => $as->id,
+                'sujeto_id'            => $as->sujeto_id,
+                'sujeto_type'          => strtolower(class_basename($as->sujeto_type)),
+                'nombre_sujeto'        => $this->getSujetoName($as),
                 'descripcion_ejecucion' => $as->descripcion_ejecucion,
-                'evidencias' => collect($as->evidencias)->map(function($ev) {
+                'evidencias'           => collect($as->evidencias)->map(function($ev) {
                     if (is_string($ev)) {
                         return [
                             'path' => $ev,

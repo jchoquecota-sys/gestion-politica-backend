@@ -16,8 +16,14 @@ use Illuminate\Support\Facades\Route;
 */
 
 // ── Public routes ─────────────────────────────────────────────────────────────
+// Accesibles sin token
 Route::post('/register', [AuthController::class, 'register'])->name('api.register');
 Route::post('/login', [AuthController::class, 'login'])->name('api.login');
+
+// Endpoint público de la landing page (sin autenticación, con caché de 1h)
+Route::prefix('public')->name('api.public.')->group(function () {
+    Route::get('/landing-data', [\App\Http\Controllers\Api\PublicLandingController::class, 'index'])->name('landing');
+});
 
 // ── Protected routes (Sanctum token required) ─────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -119,10 +125,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('personas', App\Http\Controllers\Sector\PersonaController::class)
         ->names('api.personas')
         ->middleware([
-            'index' => 'permission:personas:list',
-            'store' => 'permission:personas:create',
-            'show' => 'permission:personas:view',
-            'update' => 'permission:personas:edit',
+            'index'   => 'permission:personas:list',
+            'store'   => 'permission:personas:create',
+            'show'    => 'permission:personas:view',
+            'update'  => 'permission:personas:edit',
             'destroy' => 'permission:personas:delete',
         ]);
 
@@ -130,10 +136,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('cargos', App\Http\Controllers\Sector\CargoController::class)
         ->names('api.cargos')
         ->middleware([
-            'index' => 'permission:cargos:list',
-            'store' => 'permission:cargos:create',
-            'show' => 'permission:cargos:view',
-            'update' => 'permission:cargos:edit',
+            'index'   => 'permission:cargos:list',
+            'store'   => 'permission:cargos:create',
+            'show'    => 'permission:cargos:view',
+            'update'  => 'permission:cargos:edit',
             'destroy' => 'permission:cargos:delete',
         ]);
 
@@ -210,17 +216,27 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{actividad}/asignar', [App\Http\Controllers\Actividad\ActividadSujetoController::class, 'store'])
             ->middleware('permission:actividades:edit')
             ->name('store');
-        
+
         Route::put('/{asignacion}', [App\Http\Controllers\Actividad\ActividadSujetoController::class, 'update'])
             ->middleware('permission:actividades:edit')
             ->name('update');
-            
+
         Route::delete('/{asignacion}', [App\Http\Controllers\Actividad\ActividadSujetoController::class, 'destroy'])
             ->middleware('permission:actividades:edit')
             ->name('destroy');
     });
 
-    // ── Dashboard ───────────────────────────────────────────────────────────
+    // ── Dashboard ─────────────────────────────────────────────────────────────
     Route::get('/dashboard/stats', [\App\Http\Controllers\Api\DashboardController::class, 'getStats']);
     Route::get('/dashboard/map', [\App\Http\Controllers\Api\DashboardController::class, 'getMapData']);
+
+    // ── Landing Settings (gestión interna del contenido de la página pública) ──
+    Route::prefix('landing-settings')->name('api.landing-settings.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\LandingSettingController::class, 'show'])
+            ->middleware('permission:landing:view')
+            ->name('show');
+        Route::post('/', [\App\Http\Controllers\Api\LandingSettingController::class, 'update'])
+            ->middleware('permission:landing:edit')
+            ->name('update');
+    });
 });
