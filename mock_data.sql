@@ -4,8 +4,24 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 
+-- CARGOS
+INSERT IGNORE INTO cargos (id, nombre, descripcion, created_at, updated_at) VALUES
+(1, 'Coordinador Sectorial', 'Responsable de un sector completo', NOW(), NOW()),
+(2, 'Sub Coordinador Sectorial', 'Apoyo en la coordinación del sector', NOW(), NOW()),
+(3, 'Coordinador de Base', 'Responsable de una base territorial', NOW(), NOW()),
+(4, 'Secretario de Organización', 'Encargado de padrones de base', NOW(), NOW()),
+(5, 'Militante / Simpatizante', 'Miembro general de la base', NOW(), NOW());
+
+-- TIPOS DE ACTIVIDAD
+INSERT IGNORE INTO tipos_actividad (id, nombre, descripcion, created_at, updated_at) VALUES
+(1, 'Caminata / Pasacalle', 'Recorrido por calles', NOW(), NOW()),
+(2, 'Taller de Formación', 'Capacitación a militantes', NOW(), NOW()),
+(3, 'Asamblea General', 'Reunión de coordinación', NOW(), NOW()),
+(4, 'Mitin Político', 'Concentración pública', NOW(), NOW()),
+(5, 'Acción Social', 'Ayuda comunitaria', NOW(), NOW());
+
 -- SECTORES
-INSERT INTO sectores (id, nombre, descripcion, created_at, updated_at) VALUES 
+INSERT IGNORE INTO sectores (id, nombre, descripcion, created_at, updated_at) VALUES 
 (1, 'Tacna Cercado', 'Centro neurálgico', NOW(), NOW()),
 (2, 'G. Albarracín', 'Distrito más poblado', NOW(), NOW()),
 (3, 'Alto Alianza', 'Zona norte comercial', NOW(), NOW()),
@@ -16,7 +32,7 @@ INSERT INTO sectores (id, nombre, descripcion, created_at, updated_at) VALUES
 (8, 'Ite/Sama', 'Zonas agrícolas lejanas', NOW(), NOW());
 
 -- BASES (Distribución IRREGULAR: Fuerte en Cercado y Cono Sur)
-INSERT INTO bases (id, nombre, sector_id, latitud, longitud, direccion, created_at, updated_at) VALUES 
+INSERT IGNORE INTO bases (id, nombre, sector_id, latitud, longitud, direccion, created_at, updated_at) VALUES 
 (1, 'Base Bolognesi', 1, -18.0130, -70.2510, 'Av. Bolognesi', NOW(), NOW()),
 (2, 'Base Leguía', 1, -18.0180, -70.2560, 'Av. Leguía', NOW(), NOW()),
 (3, 'Base Vigil', 1, -18.0100, -70.2450, 'Av. Pinto', NOW(), NOW()),
@@ -28,7 +44,7 @@ INSERT INTO bases (id, nombre, sector_id, latitud, longitud, direccion, created_
 (9, 'Base Ite', 8, -17.8800, -70.5000, 'Carr. Panamericana', NOW(), NOW());
 
 -- PERSONAS (150 registros con fechas de ingreso heterogéneas)
-INSERT INTO personas (id, dni, nombres, apellidos, created_at, updated_at) VALUES 
+INSERT IGNORE INTO personas (id, dni, nombres, apellidos, created_at, updated_at) VALUES 
 -- Enero (Inicio suave)
 (1, '70000101', 'Juan', 'Mamani', '2026-01-05', NOW()), (2, '70000102', 'Rosa', 'Vargas', '2026-01-12', NOW()), (3, '70000103', 'Luis', 'Flores', '2026-01-25', NOW()),
 -- Febrero (PICO: Campaña fuerte)
@@ -51,16 +67,34 @@ INSERT INTO base_personas (base_id, persona_id, cargo_id, es_principal, created_
 (9, 16, 3, 1, NOW(), NOW());
 
 -- ACTIVIDADES (Usando solo estados oficiales: borrador, creada, cancelada)
-INSERT INTO actividades (id, titulo, descripcion, fecha_actividad, tipo_actividad_id, estado, created_at, updated_at) VALUES 
-(1, 'Caminata Bolognesi', 'Inaugural', '2026-01-10', 1, 'creada', NOW(), NOW()),
-(2, 'Taller Viñani', 'Formación', '2026-02-15', 2, 'creada', NOW(), NOW()),
-(3, 'Asamblea Centro', 'Estrategia', '2026-03-20', 3, 'cancelada', NOW(), NOW()),
-(4, 'Mitin Juventudes', 'Gran evento', '2026-05-25', 1, 'creada', NOW(), NOW()),
-(5, 'Reunión Ite', 'Planificación', '2026-05-28', 3, 'borrador', NOW(), NOW()),
-(6, 'Brigada Calana', 'Salud', '2026-05-30', 1, 'borrador', NOW(), NOW());
+INSERT IGNORE INTO actividades (id, titulo, descripcion, fecha_actividad, tipo_actividad_id, estado, es_publica, foto_portada_path, created_at, updated_at) VALUES 
+(1, 'Caminata Bolognesi', 'Inaugural', '2026-01-10', 1, 'creada', 1, NULL, NOW(), NOW()),
+(2, 'Taller Viñani', 'Formación', '2026-02-15', 2, 'creada', 0, NULL, NOW(), NOW()),
+(3, 'Asamblea Centro', 'Estrategia', '2026-03-20', 3, 'cancelada', 0, NULL, NOW(), NOW()),
+(4, 'Mitin Juventudes', 'Gran evento', '2026-05-25', 4, 'creada', 1, NULL, NOW(), NOW()),
+(5, 'Reunión Ite', 'Planificación', '2026-05-28', 3, 'borrador', 0, NULL, NOW(), NOW()),
+(6, 'Brigada Calana', 'Salud', '2026-05-30', 5, 'borrador', 0, NULL, NOW(), NOW());
+
+-- ACTIVIDAD SUJETOS (Polimórfica: Persona, Base, Sector)
+INSERT INTO actividad_sujetos (actividad_id, sujeto_id, sujeto_type, descripcion_ejecucion, evidencias, created_at, updated_at) VALUES
+(1, 1, 'App\\Models\\Sector', 'Participación de todo el sector Cercado', NULL, NOW(), NOW()),
+(1, 1, 'App\\Models\\Base', 'La base organizó la logística', NULL, NOW(), NOW()),
+(1, 2, 'App\\Models\\Base', 'Apoyo en convocatoria', NULL, NOW(), NOW()),
+(1, 1, 'App\\Models\\Persona', 'Discurso inaugural', NULL, NOW(), NOW()),
+(2, 4, 'App\\Models\\Base', 'Sede principal del evento', NULL, NOW(), NOW()),
+(2, 5, 'App\\Models\\Base', 'Participantes del taller', NULL, NOW(), NOW()),
+(4, 4, 'App\\Models\\Sector', 'Movilización general del cono norte', NULL, NOW(), NOW()),
+(4, 6, 'App\\Models\\Base', 'Coordinación de jóvenes', NULL, NOW(), NOW()),
+(5, 9, 'App\\Models\\Base', 'Revisión de planes agrícolas', NULL, NOW(), NOW()),
+(6, 6, 'App\\Models\\Sector', 'Brigada de salud rural', NULL, NOW(), NOW()),
+(6, 8, 'App\\Models\\Base', 'Atención en posta médica local', NULL, NOW(), NOW());
 
 -- SECTOR PERSONAS (Para gráficos de distribución)
 INSERT INTO sector_personas (sector_id, persona_id, cargo_id, es_principal, created_at, updated_at) VALUES 
 (1, 1, 1, 1, NOW(), NOW()), (2, 4, 1, 1, NOW(), NOW()), (4, 6, 1, 1, NOW(), NOW()), (5, 10, 1, 1, NOW(), NOW());
+
+-- LANDING SETTINGS (Configuración de la página pública)
+INSERT INTO landing_settings (nombre_candidato, cargo_candidatura, eslogan, biografia, logo_path, foto_principal_path, foto_secundaria_path, redes_sociales, color_primario, color_secundario, meta_titulo, meta_descripcion, created_at, updated_at) VALUES 
+('Juan Pérez', 'Candidato a la Alcaldía Provincial', 'Por un Tacna seguro y moderno', 'Nacido en Tacna, con 20 años de experiencia en gestión pública. Abogado y magíster en políticas públicas. Comprometido con el desarrollo sostenible de nuestra región.', NULL, NULL, NULL, '{"facebook": "https://facebook.com/juanperez", "instagram": "https://instagram.com/juanperez", "tiktok": "https://tiktok.com/@juanperez", "whatsapp": "987654321"}', '#1e40af', '#dc2626', 'Juan Pérez - Alcalde de Tacna', 'Página oficial de la campaña de Juan Pérez a la alcaldía provincial de Tacna. Conoce nuestras propuestas y únete al cambio.', NOW(), NOW());
 
 SET FOREIGN_KEY_CHECKS = 1;
