@@ -32,46 +32,46 @@ class ActividadController extends Controller
             if ($user->hasPermissionTo('actividades:manage-sector')) {
                 $allowedSectors = $user->getAllowedSectorIds();
                 $allowedBases = Base::whereIn('sector_id', $allowedSectors)->pluck('id')->toArray();
-                
+
                 $query->whereHas('sujetos', function ($q) use ($allowedSectors, $allowedBases) {
                     $q->where(function ($sq) use ($allowedSectors, $allowedBases) {
                         // Sector sujeto
-                        $sq->where(function($ss) use ($allowedSectors) {
+                        $sq->where(function ($ss) use ($allowedSectors) {
                             $ss->where('sujeto_type', Sector::class)
-                               ->whereIn('sujeto_id', $allowedSectors);
+                                ->whereIn('sujeto_id', $allowedSectors);
                         })
-                        // Base sujeto
-                        ->orWhere(function($sb) use ($allowedBases) {
-                            $sb->where('sujeto_type', Base::class)
-                               ->whereIn('sujeto_id', $allowedBases);
-                        })
-                        // Persona sujeto (en sector o base permitida)
-                        ->orWhere(function($sp) use ($allowedSectors, $allowedBases) {
-                            $sp->where('sujeto_type', Persona::class)
-                               ->whereHasMorph('sujeto', [Persona::class], function($pq) use ($allowedSectors, $allowedBases) {
-                                   $pq->whereHas('sectorPersonas', fn($ssp) => $ssp->whereIn('sector_id', $allowedSectors))
-                                      ->orWhereHas('basePersonas', fn($bp) => $bp->whereIn('base_id', $allowedBases));
-                               });
-                        });
+                            // Base sujeto
+                            ->orWhere(function ($sb) use ($allowedBases) {
+                                $sb->where('sujeto_type', Base::class)
+                                    ->whereIn('sujeto_id', $allowedBases);
+                            })
+                            // Persona sujeto (en sector o base permitida)
+                            ->orWhere(function ($sp) use ($allowedSectors, $allowedBases) {
+                                $sp->where('sujeto_type', Persona::class)
+                                    ->whereHasMorph('sujeto', [Persona::class], function ($pq) use ($allowedSectors, $allowedBases) {
+                                        $pq->whereHas('sectorPersonas', fn($ssp) => $ssp->whereIn('sector_id', $allowedSectors))
+                                            ->orWhereHas('basePersonas', fn($bp) => $bp->whereIn('base_id', $allowedBases));
+                                    });
+                            });
                     });
                 })->orWhere('created_by', $user->id);
             } elseif ($user->hasPermissionTo('actividades:manage-base')) {
                 $allowedBases = $user->getAllowedBaseIds();
-                
+
                 $query->whereHas('sujetos', function ($q) use ($allowedBases) {
                     $q->where(function ($sq) use ($allowedBases) {
                         // Base sujeto
-                        $sq->where(function($sb) use ($allowedBases) {
+                        $sq->where(function ($sb) use ($allowedBases) {
                             $sb->where('sujeto_type', Base::class)
-                               ->whereIn('sujeto_id', $allowedBases);
+                                ->whereIn('sujeto_id', $allowedBases);
                         })
-                        // Persona sujeto (en base permitida)
-                        ->orWhere(function($sp) use ($allowedBases) {
-                            $sp->where('sujeto_type', Persona::class)
-                               ->whereHasMorph('sujeto', [Persona::class], function($pq) use ($allowedBases) {
-                                   $pq->whereHas('basePersonas', fn($bp) => $bp->whereIn('base_id', $allowedBases));
-                               });
-                        });
+                            // Persona sujeto (en base permitida)
+                            ->orWhere(function ($sp) use ($allowedBases) {
+                                $sp->where('sujeto_type', Persona::class)
+                                    ->whereHasMorph('sujeto', [Persona::class], function ($pq) use ($allowedBases) {
+                                        $pq->whereHas('basePersonas', fn($bp) => $bp->whereIn('base_id', $allowedBases));
+                                    });
+                            });
                     });
                 })->orWhere('created_by', $user->id);
             } else {
@@ -90,15 +90,15 @@ class ActividadController extends Controller
                 }
             }
             $basesIds = Base::where('sector_id', $sectorId)->pluck('id')->toArray();
-            
-            $query->whereHas('sujetos', function($q) use ($sectorId, $basesIds) {
-                $q->where(function($sq) use ($sectorId, $basesIds) {
+
+            $query->whereHas('sujetos', function ($q) use ($sectorId, $basesIds) {
+                $q->where(function ($sq) use ($sectorId, $basesIds) {
                     $sq->where(fn($ss) => $ss->where('sujeto_type', Sector::class)->where('sujeto_id', $sectorId))
-                       ->orWhere(fn($sb) => $sb->where('sujeto_type', Base::class)->whereIn('sujeto_id', $basesIds))
-                       ->orWhere(fn($sp) => $sp->where('sujeto_type', Persona::class)->whereHasMorph('sujeto', [Persona::class], function($pq) use ($sectorId, $basesIds) {
-                           $pq->whereHas('sectorPersonas', fn($ssp) => $ssp->where('sector_id', $sectorId))
-                              ->orWhereHas('basePersonas', fn($bp) => $bp->whereIn('base_id', $basesIds));
-                       }));
+                        ->orWhere(fn($sb) => $sb->where('sujeto_type', Base::class)->whereIn('sujeto_id', $basesIds))
+                        ->orWhere(fn($sp) => $sp->where('sujeto_type', Persona::class)->whereHasMorph('sujeto', [Persona::class], function ($pq) use ($sectorId, $basesIds) {
+                            $pq->whereHas('sectorPersonas', fn($ssp) => $ssp->where('sector_id', $sectorId))
+                                ->orWhereHas('basePersonas', fn($bp) => $bp->whereIn('base_id', $basesIds));
+                        }));
                 });
             });
         } elseif ($request->has('base_id') && $request->base_id) {
@@ -116,12 +116,12 @@ class ActividadController extends Controller
                     }
                 }
             }
-            $query->whereHas('sujetos', function($q) use ($baseId) {
-                $q->where(function($sq) use ($baseId) {
+            $query->whereHas('sujetos', function ($q) use ($baseId) {
+                $q->where(function ($sq) use ($baseId) {
                     $sq->where(fn($sb) => $sb->where('sujeto_type', Base::class)->where('sujeto_id', $baseId))
-                       ->orWhere(fn($sp) => $sp->where('sujeto_type', Persona::class)->whereHasMorph('sujeto', [Persona::class], function($pq) use ($baseId) {
-                           $pq->whereHas('basePersonas', fn($bp) => $bp->where('base_id', $baseId));
-                       }));
+                        ->orWhere(fn($sp) => $sp->where('sujeto_type', Persona::class)->whereHasMorph('sujeto', [Persona::class], function ($pq) use ($baseId) {
+                            $pq->whereHas('basePersonas', fn($bp) => $bp->where('base_id', $baseId));
+                        }));
                 });
             });
         }
@@ -136,9 +136,9 @@ class ActividadController extends Controller
 
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('titulo', 'like', "%{$search}%")
-                  ->orWhere('descripcion', 'like', "%{$search}%");
+                    ->orWhere('descripcion', 'like', "%{$search}%");
             });
         }
 
@@ -152,12 +152,12 @@ class ActividadController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => collect($paginator->items())->map(fn($a) => $this->formatResource($a)),
-            'meta'   => [
+            'data' => collect($paginator->items())->map(fn($a) => $this->formatResource($a)),
+            'meta' => [
                 'current_page' => $paginator->currentPage(),
-                'last_page'    => $paginator->lastPage(),
-                'per_page'     => $paginator->perPage(),
-                'total'        => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
             ]
         ]);
     }
@@ -175,14 +175,14 @@ class ActividadController extends Controller
                 }
 
                 $actividad = Actividad::create([
-                    'titulo'            => $request->titulo,
-                    'descripcion'       => $request->descripcion,
-                    'fecha_actividad'   => $request->fecha_actividad,
+                    'titulo' => $request->titulo,
+                    'descripcion' => $request->descripcion,
+                    'fecha_actividad' => $request->fecha_actividad,
                     'tipo_actividad_id' => $request->tipo_actividad_id,
-                    'estado'            => $request->estado,
-                    'es_publica'        => $request->boolean('es_publica', false),
+                    'estado' => $request->estado,
+                    'es_publica' => $request->boolean('es_publica', false),
                     'foto_portada_path' => $fotoPortadaPath,
-                    'created_by'        => auth()->id(),
+                    'created_by' => auth()->id(),
                 ]);
 
                 $sujetos = $request->sujetos;
@@ -241,8 +241,11 @@ class ActividadController extends Controller
         return DB::transaction(function () use ($request, $actividad) {
             try {
                 $updateData = $request->only([
-                    'titulo', 'descripcion', 'fecha_actividad',
-                    'tipo_actividad_id', 'estado'
+                    'titulo',
+                    'descripcion',
+                    'fecha_actividad',
+                    'tipo_actividad_id',
+                    'estado'
                 ]);
 
                 if ($request->hasFile('foto_portada')) {
@@ -347,24 +350,32 @@ class ActividadController extends Controller
         if ($user->hasPermissionTo('actividades:manage-sector')) {
             $allowedSectors = $user->getAllowedSectorIds();
             foreach ($actividad->sujetos as $as) {
-                if ($as->sujeto_type === Sector::class && in_array($as->sujeto_id, $allowedSectors)) $hasAccess = true;
-                if ($as->sujeto_type === Base::class && in_array($as->sujeto->sector_id, $allowedSectors)) $hasAccess = true;
+                if ($as->sujeto_type === Sector::class && in_array($as->sujeto_id, $allowedSectors))
+                    $hasAccess = true;
+                if ($as->sujeto_type === Base::class && in_array($as->sujeto->sector_id, $allowedSectors))
+                    $hasAccess = true;
                 if ($as->sujeto_type === Persona::class) {
                     $p = $as->sujeto;
-                    if ($p->sectorPersonas()->whereIn('sector_id', $allowedSectors)->exists()) $hasAccess = true;
-                    if ($p->basePersonas()->whereHas('base', fn($b) => $b->whereIn('sector_id', $allowedSectors))->exists()) $hasAccess = true;
+                    if ($p->sectorPersonas()->whereIn('sector_id', $allowedSectors)->exists())
+                        $hasAccess = true;
+                    if ($p->basePersonas()->whereHas('base', fn($b) => $b->whereIn('sector_id', $allowedSectors))->exists())
+                        $hasAccess = true;
                 }
-                if ($hasAccess) break;
+                if ($hasAccess)
+                    break;
             }
         } elseif ($user->hasPermissionTo('actividades:manage-base')) {
             $allowedBases = $user->getAllowedBaseIds();
             foreach ($actividad->sujetos as $as) {
-                if ($as->sujeto_type === Base::class && in_array($as->sujeto_id, $allowedBases)) $hasAccess = true;
+                if ($as->sujeto_type === Base::class && in_array($as->sujeto_id, $allowedBases))
+                    $hasAccess = true;
                 if ($as->sujeto_type === Persona::class) {
                     $p = $as->sujeto;
-                    if ($p->basePersonas()->whereIn('base_id', $allowedBases)->exists()) $hasAccess = true;
+                    if ($p->basePersonas()->whereIn('base_id', $allowedBases)->exists())
+                        $hasAccess = true;
                 }
-                if ($hasAccess) break;
+                if ($hasAccess)
+                    break;
             }
         }
 
@@ -379,33 +390,34 @@ class ActividadController extends Controller
     private function formatResource(Actividad $actividad): array
     {
         return [
-            'id'               => $actividad->id,
-            'titulo'           => $actividad->titulo,
-            'descripcion'      => $actividad->descripcion,
-            'fecha_actividad'  => $actividad->fecha_actividad?->toDateTimeString(),
-            'tipo_actividad'   => [
-                'id'     => $actividad->tipoActividad?->id,
+            'id' => $actividad->id,
+            'titulo' => $actividad->titulo,
+            'descripcion' => $actividad->descripcion,
+            'fecha_actividad' => $actividad->fecha_actividad?->toDateTimeString(),
+            'tipo_actividad' => [
+                'id' => $actividad->tipoActividad?->id,
                 'nombre' => $actividad->tipoActividad?->nombre,
             ],
-            'estado'           => $actividad->estado,
-            'es_publica'       => (bool) $actividad->es_publica,
+            'estado' => $actividad->estado,
+            'es_publica' => (bool) $actividad->es_publica,
             'foto_portada_path' => $actividad->foto_portada_path,
             'foto_portada_url' => $actividad->foto_portada_path
                 ? \Illuminate\Support\Facades\Storage::disk('public')->url($actividad->foto_portada_path)
                 : null,
             'sujetos' => $actividad->sujetos->map(fn($as) => [
-                'id'                   => $as->id,
-                'sujeto_id'            => $as->sujeto_id,
-                'sujeto_type'          => strtolower(class_basename($as->sujeto_type)),
-                'nombre_sujeto'        => $this->getSujetoName($as),
-                'hora_asistencia'      => $as->hora_asistencia,
-                'metodo_registro'      => $as->metodo_registro,
+                'id' => $as->id,
+                'sujeto_id' => $as->sujeto_id,
+                'sujeto_type' => strtolower(class_basename($as->sujeto_type)),
+                'nombre_sujeto' => $this->getSujetoName($as),
+                'hora_asistencia' => $as->hora_asistencia,
+                'hora_salida' => $as->hora_salida,
+                'metodo_registro' => $as->metodo_registro,
                 'descripcion_ejecucion' => $as->descripcion_ejecucion,
-                'evidencias'           => collect($as->evidencias)->map(function($ev) {
+                'evidencias' => collect($as->evidencias)->map(function ($ev) {
                     if (is_string($ev)) {
                         return [
                             'path' => $ev,
-                            'url'  => \Illuminate\Support\Facades\Storage::disk('public')->url($ev)
+                            'url' => \Illuminate\Support\Facades\Storage::disk('public')->url($ev)
                         ];
                     }
                     return $ev;
@@ -418,11 +430,14 @@ class ActividadController extends Controller
     private function getSujetoName(ActividadSujeto $as): string
     {
         $sujeto = $as->sujeto;
-        if (!$sujeto) return 'N/A';
-        
-        if ($sujeto instanceof Persona) return $sujeto->nombre_completo;
-        if ($sujeto instanceof Base || $sujeto instanceof Sector) return $sujeto->nombre;
-        
+        if (!$sujeto)
+            return 'N/A';
+
+        if ($sujeto instanceof Persona)
+            return $sujeto->nombre_completo;
+        if ($sujeto instanceof Base || $sujeto instanceof Sector)
+            return $sujeto->nombre;
+
         return 'N/A';
     }
 
