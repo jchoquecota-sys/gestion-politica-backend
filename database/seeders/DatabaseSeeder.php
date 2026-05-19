@@ -21,5 +21,9 @@ class DatabaseSeeder extends Seeder
             CargoSeeder::class,
             TipoActividadSeeder::class,
         ]);
+
+        if (app()->environment('local')) {
+            $this->call(MockDataSeeder::class);
+        }
     }
 }
