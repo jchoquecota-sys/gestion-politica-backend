@@ -20,6 +20,7 @@ class ActividadSujeto extends Model
         'descripcion_ejecucion',
         'evidencias',
         'hora_asistencia',
+        'hora_salida',
         'metodo_registro',
         'registrado_por',
         'latitud_capturada',
@@ -33,6 +34,7 @@ class ActividadSujeto extends Model
     protected $casts = [
         'evidencias' => 'json',
         'hora_asistencia' => 'datetime',
+        'hora_salida' => 'datetime',
         'latitud_capturada' => 'decimal:8',
         'longitud_capturada' => 'decimal:8',
     ];

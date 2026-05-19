@@ -124,6 +124,34 @@ class ActividadSujetoController extends Controller
         ]);
 
         try {
+            // Verificar si ya existe registro para esta persona en esta actividad
+            $asignacion = ActividadSujeto::where('actividad_id', $actividad->id)
+                ->where('sujeto_id', $request->persona_id)
+                ->where('sujeto_type', Persona::class)
+                ->first();
+
+            if ($asignacion && $asignacion->hora_asistencia !== null) {
+                if ($asignacion->hora_salida !== null) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Esta persona ya ha registrado su ingreso y salida de este evento.',
+                        'data' => $asignacion->load('sujeto')
+                    ], 422);
+                }
+
+                $asignacion->update([
+                    'hora_salida' => now(),
+                    'updated_by' => auth()->id(),
+                ]);
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Salida registrada correctamente de forma manual.',
+                    'tipo' => 'salida',
+                    'data' => $asignacion->load('sujeto')
+                ]);
+            }
+
             $asignacion = ActividadSujeto::updateOrCreate(
                 [
                     'actividad_id' => $actividad->id,
@@ -146,6 +174,7 @@ class ActividadSujetoController extends Controller
             return response()->json([
                 'status' => 'success',
                 'message' => 'Asistencia registrada manualmente.',
+                'tipo' => 'ingreso',
                 'data' => $asignacion->load('sujeto')
             ]);
         } catch (\Exception $e) {
@@ -185,12 +214,55 @@ class ActividadSujetoController extends Controller
                 if ($distancia > $radio) {
                     return response()->json([
                         'status' => 'error', 
-                        'message' => 'Estás fuera del radio permitido para marcar asistencia.'
+                        'message' => 'Estás fuera del radio permitido para marcar tu asistencia o salida.'
                     ], 403);
                 }
             }
 
-            // 2. Regla Anti-Amigo (Device Locking)
+            // Verificar si ya existe registro de asistencia para esta persona
+            $asignacion = ActividadSujeto::where('actividad_id', $actividad->id)
+                ->where('sujeto_id', $user->persona_id)
+                ->where('sujeto_type', Persona::class)
+                ->first();
+
+            if ($asignacion && $asignacion->hora_asistencia !== null) {
+                if ($asignacion->hora_salida !== null) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Ya has registrado tu ingreso y tu salida para este evento.',
+                        'data' => $asignacion->load('sujeto')
+                    ], 422);
+                }
+
+                // 2. Regla Anti-Amigo para Salida (Device Locking)
+                $deviceUsado = ActividadSujeto::where('actividad_id', $actividad->id)
+                    ->where('device_fingerprint', $request->browser_fingerprint)
+                    ->whereDate('hora_asistencia', now()->toDateString())
+                    ->where('sujeto_id', '!=', $user->persona_id)
+                    ->exists();
+
+                if ($deviceUsado) {
+                    return response()->json([
+                        'status' => 'error', 
+                        'message' => 'Este dispositivo ya fue usado para registrar la asistencia de otra persona hoy.'
+                    ], 403);
+                }
+
+                // Registrar Salida
+                $asignacion->update([
+                    'hora_salida' => now(),
+                    'updated_by' => $user->id,
+                ]);
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Salida registrada correctamente.',
+                    'tipo' => 'salida',
+                    'data' => $asignacion->load('sujeto')
+                ]);
+            }
+
+            // 2. Regla Anti-Amigo para Ingreso (Device Locking)
             $deviceUsado = ActividadSujeto::where('actividad_id', $actividad->id)
                 ->where('device_fingerprint', $request->browser_fingerprint)
                 ->whereDate('hora_asistencia', now()->toDateString())
@@ -204,7 +276,7 @@ class ActividadSujetoController extends Controller
                 ], 403);
             }
 
-            // 3. Registrar Asistencia
+            // 3. Registrar Ingreso
             $asignacion = ActividadSujeto::updateOrCreate(
                 [
                     'actividad_id' => $actividad->id,
@@ -228,6 +300,7 @@ class ActividadSujetoController extends Controller
             return response()->json([
                 'status' => 'success',
                 'message' => 'Asistencia registrada correctamente.',
+                'tipo' => 'ingreso',
                 'data' => $asignacion->load('sujeto')
             ]);
 
