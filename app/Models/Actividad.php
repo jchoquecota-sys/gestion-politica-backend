@@ -22,6 +22,9 @@ class Actividad extends Model
         'estado',
         'es_publica',
         'foto_portada_path',
+        'latitud',
+        'longitud',
+        'radio_asistencia_metros',
         'created_by',
         'updated_by',
         'deleted_by'
@@ -30,6 +33,9 @@ class Actividad extends Model
     protected $casts = [
         'fecha_actividad' => 'datetime',
         'es_publica'      => 'boolean',
+        'latitud'         => 'decimal:8',
+        'longitud'        => 'decimal:8',
+        'radio_asistencia_metros' => 'integer',
     ];
 
     public function tipoActividad(): BelongsTo

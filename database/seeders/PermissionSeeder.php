@@ -89,6 +89,9 @@ class PermissionSeeder extends Seeder
         'actividades:manage-sector',
         'actividades:manage-base',
         'actividades:view',
+        'actividades:asistencia-manual',
+        'actividades:asistencia-self',
+        'actividades:asistencia-reporte',
 
         // ── Landing Page module ───────────────────────────────────────────────
         'landing:edit',  // Gestionar la configuración y contenido de la página pública

@@ -23,6 +23,7 @@ Route::post('/login', [AuthController::class, 'login'])->name('api.login');
 // Endpoint público de la landing page (sin autenticación, con caché de 1h)
 Route::prefix('public')->name('api.public.')->group(function () {
     Route::get('/landing-data', [\App\Http\Controllers\Api\PublicLandingController::class, 'index'])->name('landing');
+    Route::get('/actividades/{actividad}/basico', [\App\Http\Controllers\Actividad\ActividadController::class, 'getPublicInfo'])->name('actividades.basico');
 });
 
 // ── Protected routes (Sanctum token required) ─────────────────────────────────
@@ -224,6 +225,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{asignacion}', [App\Http\Controllers\Actividad\ActividadSujetoController::class, 'destroy'])
             ->middleware('permission:actividades:edit')
             ->name('destroy');
+    });
+
+    // ── Asistencias (QR y Manual) ─────────────────────────────────────────────
+    Route::prefix('actividades/{actividad}/asistencias')->name('api.asistencias.')->group(function () {
+        Route::post('/admin', [App\Http\Controllers\Actividad\ActividadSujetoController::class, 'marcarAsistenciaManual'])
+            ->middleware('permission:actividades:asistencia-manual')
+            ->name('admin');
+
+        Route::post('/self-register', [App\Http\Controllers\Actividad\ActividadSujetoController::class, 'marcarAsistenciaQR'])
+            ->middleware('permission:actividades:asistencia-self')
+            ->name('self');
     });
 
     // ── Dashboard ─────────────────────────────────────────────────────────────

@@ -398,6 +398,8 @@ class ActividadController extends Controller
                 'sujeto_id'            => $as->sujeto_id,
                 'sujeto_type'          => strtolower(class_basename($as->sujeto_type)),
                 'nombre_sujeto'        => $this->getSujetoName($as),
+                'hora_asistencia'      => $as->hora_asistencia,
+                'metodo_registro'      => $as->metodo_registro,
                 'descripcion_ejecucion' => $as->descripcion_ejecucion,
                 'evidencias'           => collect($as->evidencias)->map(function($ev) {
                     if (is_string($ev)) {
@@ -422,5 +424,24 @@ class ActividadController extends Controller
         if ($sujeto instanceof Base || $sujeto instanceof Sector) return $sujeto->nombre;
         
         return 'N/A';
+    }
+
+    /**
+     * Obtener información pública básica de una actividad (para QR de asistencia).
+     */
+    public function getPublicInfo(Actividad $actividad): JsonResponse
+    {
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'id' => $actividad->id,
+                'titulo' => $actividad->titulo,
+                'fecha_actividad' => $actividad->fecha_actividad,
+                'estado' => $actividad->estado,
+                'latitud' => $actividad->latitud,
+                'longitud' => $actividad->longitud,
+                'radio_asistencia_metros' => $actividad->radio_asistencia_metros,
+            ]
+        ]);
     }
 }

@@ -113,4 +113,146 @@ class ActividadSujetoController extends Controller
             default => throw new \InvalidArgumentException("Tipo de sujeto no válido"),
         };
     }
+
+    /**
+     * Camino B: Registro Manual por el Coordinador (Admin)
+     */
+    public function marcarAsistenciaManual(Request $request, Actividad $actividad): JsonResponse
+    {
+        $request->validate([
+            'persona_id' => 'required|integer|exists:personas,id',
+        ]);
+
+        try {
+            $asignacion = ActividadSujeto::updateOrCreate(
+                [
+                    'actividad_id' => $actividad->id,
+                    'sujeto_id' => $request->persona_id,
+                    'sujeto_type' => Persona::class,
+                ],
+                [
+                    'hora_asistencia' => now(),
+                    'metodo_registro' => 'manual_admin',
+                    'registrado_por' => auth()->id(),
+                    'updated_by' => auth()->id(),
+                ]
+            );
+
+            // Si fue creado en este momento, setear created_by
+            if ($asignacion->wasRecentlyCreated) {
+                $asignacion->update(['created_by' => auth()->id()]);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Asistencia registrada manualmente.',
+                'data' => $asignacion->load('sujeto')
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error en asistencia manual: " . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'No se pudo registrar la asistencia.'], 500);
+        }
+    }
+
+    /**
+     * Camino A: Auto-registro QR (Simpatizante)
+     */
+    public function marcarAsistenciaQR(Request $request, Actividad $actividad): JsonResponse
+    {
+        $request->validate([
+            'latitud_usuario' => 'required|numeric',
+            'longitud_usuario' => 'required|numeric',
+            'browser_fingerprint' => 'required|string',
+        ]);
+
+        try {
+            $user = auth()->user();
+            if (!$user || !$user->persona_id) {
+                return response()->json(['status' => 'error', 'message' => 'Usuario no vinculado a una persona.'], 403);
+            }
+
+            // 1. Regla Anti-Casa (Geofencing)
+            if ($actividad->latitud && $actividad->longitud) {
+                $distancia = $this->calcularDistancia(
+                    $actividad->latitud,
+                    $actividad->longitud,
+                    $request->latitud_usuario,
+                    $request->longitud_usuario
+                );
+
+                $radio = $actividad->radio_asistencia_metros ?? 100;
+
+                if ($distancia > $radio) {
+                    return response()->json([
+                        'status' => 'error', 
+                        'message' => 'Estás fuera del radio permitido para marcar asistencia.'
+                    ], 403);
+                }
+            }
+
+            // 2. Regla Anti-Amigo (Device Locking)
+            $deviceUsado = ActividadSujeto::where('actividad_id', $actividad->id)
+                ->where('device_fingerprint', $request->browser_fingerprint)
+                ->whereDate('hora_asistencia', now()->toDateString())
+                ->where('sujeto_id', '!=', $user->persona_id)
+                ->exists();
+
+            if ($deviceUsado) {
+                return response()->json([
+                    'status' => 'error', 
+                    'message' => 'Este dispositivo ya fue usado para registrar la asistencia de otra persona hoy.'
+                ], 403);
+            }
+
+            // 3. Registrar Asistencia
+            $asignacion = ActividadSujeto::updateOrCreate(
+                [
+                    'actividad_id' => $actividad->id,
+                    'sujeto_id' => $user->persona_id,
+                    'sujeto_type' => Persona::class,
+                ],
+                [
+                    'hora_asistencia' => now(),
+                    'metodo_registro' => 'qr_self_service',
+                    'latitud_capturada' => $request->latitud_usuario,
+                    'longitud_capturada' => $request->longitud_usuario,
+                    'device_fingerprint' => $request->browser_fingerprint,
+                    'updated_by' => $user->id,
+                ]
+            );
+
+            if ($asignacion->wasRecentlyCreated) {
+                $asignacion->update(['created_by' => $user->id]);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Asistencia registrada correctamente.',
+                'data' => $asignacion->load('sujeto')
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Error en asistencia QR: " . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'Ocurrió un error al registrar la asistencia.'], 500);
+        }
+    }
+
+    /**
+     * Calcula la distancia en metros entre dos coordenadas GPS (Fórmula de Haversine)
+     */
+    private function calcularDistancia($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371000; // Radio de la tierra en metros
+
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+
+        $a = sin($dLat/2) * sin($dLat/2) +
+            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+            sin($dLon/2) * sin($dLon/2);
+
+        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+
+        return $earthRadius * $c;
+    }
 }

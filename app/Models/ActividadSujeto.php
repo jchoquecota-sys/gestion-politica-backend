@@ -19,6 +19,12 @@ class ActividadSujeto extends Model
         'sujeto_type',
         'descripcion_ejecucion',
         'evidencias',
+        'hora_asistencia',
+        'metodo_registro',
+        'registrado_por',
+        'latitud_capturada',
+        'longitud_capturada',
+        'device_fingerprint',
         'created_by',
         'updated_by',
         'deleted_by'
@@ -26,6 +32,9 @@ class ActividadSujeto extends Model
 
     protected $casts = [
         'evidencias' => 'json',
+        'hora_asistencia' => 'datetime',
+        'latitud_capturada' => 'decimal:8',
+        'longitud_capturada' => 'decimal:8',
     ];
 
     public function actividad(): BelongsTo
