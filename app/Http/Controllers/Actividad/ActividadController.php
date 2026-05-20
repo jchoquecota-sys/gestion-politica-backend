@@ -181,6 +181,9 @@ class ActividadController extends Controller
                     'tipo_actividad_id' => $request->tipo_actividad_id,
                     'estado' => $request->estado,
                     'es_publica' => $request->boolean('es_publica', false),
+                    'latitud' => $request->latitud,
+                    'longitud' => $request->longitud,
+                    'radio_asistencia_metros' => $request->radio_asistencia_metros ?? 100,
                     'foto_portada_path' => $fotoPortadaPath,
                     'created_by' => auth()->id(),
                 ]);
@@ -245,7 +248,10 @@ class ActividadController extends Controller
                     'descripcion',
                     'fecha_actividad',
                     'tipo_actividad_id',
-                    'estado'
+                    'estado',
+                    'latitud',
+                    'longitud',
+                    'radio_asistencia_metros'
                 ]);
 
                 if ($request->hasFile('foto_portada')) {

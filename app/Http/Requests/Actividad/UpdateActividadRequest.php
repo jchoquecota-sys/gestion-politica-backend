@@ -21,6 +21,9 @@ class UpdateActividadRequest extends FormRequest
             'estado'            => 'sometimes|required|in:borrador,creada,cancelada',
             'es_publica'        => 'nullable|boolean',
             'foto_portada'      => 'nullable|image|max:5120', // Max 5MB
+            'latitud'           => 'nullable|numeric',
+            'longitud'          => 'nullable|numeric',
+            'radio_asistencia_metros' => 'nullable|integer|min:1',
 
             // Sujetos vinculados (opcional en update, si se envía se reemplazan)
             'sujetos'                        => 'nullable|array',
