@@ -311,6 +311,133 @@ class ActividadSujetoController extends Controller
     }
 
     /**
+     * Camino C: Registro Público por DNI (Sin Login)
+     */
+    public function marcarAsistenciaDNI(Request $request, Actividad $actividad): JsonResponse
+    {
+        $request->validate([
+            'dni' => 'required|string|max:20',
+            'latitud_usuario' => 'required|numeric',
+            'longitud_usuario' => 'required|numeric',
+            'browser_fingerprint' => 'required|string',
+        ]);
+
+        try {
+            // Buscar la persona por DNI
+            $persona = Persona::where('dni', $request->dni)->first();
+            
+            if (!$persona) {
+                return response()->json(['status' => 'error', 'message' => 'DNI no encontrado en nuestros registros. Consulte con su responsable.'], 404);
+            }
+
+            // 1. Regla Anti-Casa (Geofencing)
+            if ($actividad->latitud && $actividad->longitud) {
+                $distancia = $this->calcularDistancia(
+                    $actividad->latitud,
+                    $actividad->longitud,
+                    $request->latitud_usuario,
+                    $request->longitud_usuario
+                );
+
+                $radio = $actividad->radio_asistencia_metros ?? 100;
+
+                if ($distancia > $radio) {
+                    return response()->json([
+                        'status' => 'error', 
+                        'message' => 'Estás fuera del radio permitido para marcar tu asistencia o salida.'
+                    ], 403);
+                }
+            }
+
+            // Verificar si ya existe en la lista de participantes de la actividad
+            $asignacion = ActividadSujeto::where('actividad_id', $actividad->id)
+                ->where('sujeto_id', $persona->id)
+                ->where('sujeto_type', Persona::class)
+                ->first();
+
+            // RESTRICCIÓN SOLICITADA: Para DNI, la persona DEBE estar en la lista de sujetos previamente.
+            if (!$asignacion) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Su DNI no está autorizado. Debe estar pre-registrado en la lista de participantes de esta actividad.'
+                ], 403);
+            }
+
+            // Lógica de Salida
+            if ($asignacion->hora_asistencia !== null) {
+                if ($asignacion->hora_salida !== null) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Ya has registrado tu ingreso y tu salida para este evento.',
+                        'data' => $asignacion->load('sujeto')
+                    ], 422);
+                }
+
+                // 2. Regla Anti-Amigo para Salida (Device Locking)
+                $deviceUsado = ActividadSujeto::where('actividad_id', $actividad->id)
+                    ->where('device_fingerprint', $request->browser_fingerprint)
+                    ->whereDate('hora_asistencia', now()->toDateString())
+                    ->where('sujeto_id', '!=', $persona->id)
+                    ->exists();
+
+                if ($deviceUsado) {
+                    return response()->json([
+                        'status' => 'error', 
+                        'message' => 'Este dispositivo ya fue usado para registrar la asistencia de otra persona hoy.'
+                    ], 403);
+                }
+
+                // Registrar Salida
+                $asignacion->update([
+                    'hora_salida' => now(),
+                ]);
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Salida registrada correctamente por DNI.',
+                    'tipo' => 'salida',
+                    'data' => $asignacion->load('sujeto')
+                ]);
+            }
+
+            // Lógica de Ingreso
+            // 2. Regla Anti-Amigo para Ingreso (Device Locking)
+            $deviceUsado = ActividadSujeto::where('actividad_id', $actividad->id)
+                ->where('device_fingerprint', $request->browser_fingerprint)
+                ->whereDate('hora_asistencia', now()->toDateString())
+                ->where('sujeto_id', '!=', $persona->id)
+                ->exists();
+
+            if ($deviceUsado) {
+                return response()->json([
+                    'status' => 'error', 
+                    'message' => 'Este dispositivo ya fue usado para registrar la asistencia de otra persona hoy.'
+                ], 403);
+            }
+
+            // 3. Registrar Ingreso (Solo actualizamos porque ya confirmamos que existe la asignación)
+            $asignacion->update([
+                'hora_asistencia' => now(),
+                'metodo_registro' => 'qr_self_service',
+                'latitud_capturada' => $request->latitud_usuario,
+                'longitud_capturada' => $request->longitud_usuario,
+                'device_fingerprint' => $request->browser_fingerprint,
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Asistencia registrada correctamente por DNI.',
+                'tipo' => 'ingreso',
+                'data' => $asignacion->load('sujeto')
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Error en asistencia DNI: " . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'Ocurrió un error al registrar la asistencia.'], 500);
+        }
+    }
+
+    /**
      * Calcula la distancia en metros entre dos coordenadas GPS (Fórmula de Haversine)
      */
     private function calcularDistancia($lat1, $lon1, $lat2, $lon2)

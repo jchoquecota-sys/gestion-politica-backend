@@ -24,6 +24,7 @@ Route::post('/login', [AuthController::class, 'login'])->name('api.login');
 Route::prefix('public')->name('api.public.')->group(function () {
     Route::get('/landing-data', [\App\Http\Controllers\Api\PublicLandingController::class, 'index'])->name('landing');
     Route::get('/actividades/{actividad}/basico', [\App\Http\Controllers\Actividad\ActividadController::class, 'getPublicInfo'])->name('actividades.basico');
+    Route::post('/actividades/{actividad}/asistencias/dni', [\App\Http\Controllers\Actividad\ActividadSujetoController::class, 'marcarAsistenciaDNI'])->name('actividades.asistencia.dni');
 });
 
 // ── Protected routes (Sanctum token required) ─────────────────────────────────
