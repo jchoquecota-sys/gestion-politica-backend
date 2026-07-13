@@ -31,28 +31,24 @@ class PermissionSeeder extends Seeder
         'roles:create',
         'roles:delete',
         'roles:edit',
-        'roles:list',
         'roles:view',
 
         // ── Users module ─────────────────────────────────────────────────────
         'users:create',
         'users:delete',
         'users:edit',
-        'users:list',
         'users:view',
 
         // ── Sectores module ──────────────────────────────────────────────────
         'sectores:create',
         'sectores:delete',
         'sectores:edit',
-        'sectores:list',
         'sectores:view',
 
         // ── Personas module ──────────────────────────────────────────────────
         'personas:create',
         'personas:delete',
         'personas:edit',
-        'personas:list',
         'personas:list-all',
         'personas:list-only-sector',
         'personas:view',
@@ -61,7 +57,6 @@ class PermissionSeeder extends Seeder
         'cargos:create',
         'cargos:delete',
         'cargos:edit',
-        'cargos:list',
         'cargos:view',
 
         // ── Dashboard ────────────────────────────────────────────────────────
@@ -72,7 +67,6 @@ class PermissionSeeder extends Seeder
         'bases:create',
         'bases:delete',
         'bases:edit',
-        'bases:list',
         'bases:list-all', // Permiso especial para ver bases de todos los sectores
         'bases:view',
 
@@ -84,7 +78,6 @@ class PermissionSeeder extends Seeder
         'actividades:create',
         'actividades:delete',
         'actividades:edit',
-        'actividades:list',
         'actividades:manage-all',
         'actividades:manage-sector',
         'actividades:manage-base',

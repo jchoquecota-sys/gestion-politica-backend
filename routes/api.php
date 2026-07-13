@@ -52,7 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('roles')->name('api.roles.')->group(function () {
 
         Route::get('/', [RoleController::class, 'index'])
-            ->middleware('permission:roles:list')
+            ->middleware('permission:roles:view')
             ->name('index');
 
         Route::get('/permissions', [RoleController::class, 'availablePermissions'])
@@ -80,7 +80,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('users')->name('api.users.')->group(function () {
 
         Route::get('/', [UserController::class, 'index'])
-            ->middleware('permission:users:list')
+            ->middleware('permission:users:view')
             ->name('index');
 
         Route::get('/{user}', [UserController::class, 'show'])
@@ -103,7 +103,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Sectores module ───────────────────────────────────────────────────────
     Route::prefix('sectores')->name('api.sectores.')->group(function () {
         Route::get('/', [App\Http\Controllers\Sector\SectorController::class, 'index'])
-            ->middleware('permission:sectores:list')
+            ->middleware('permission:sectores:view')
             ->name('index');
 
         Route::post('/', [App\Http\Controllers\Sector\SectorController::class, 'store'])
@@ -127,7 +127,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('personas', App\Http\Controllers\Sector\PersonaController::class)
         ->names('api.personas')
         ->middleware([
-            'index'   => 'permission:personas:list',
+            'index'   => 'permission:personas:view',
             'store'   => 'permission:personas:create',
             'show'    => 'permission:personas:view',
             'update'  => 'permission:personas:edit',
@@ -138,7 +138,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('cargos', App\Http\Controllers\Sector\CargoController::class)
         ->names('api.cargos')
         ->middleware([
-            'index'   => 'permission:cargos:list',
+            'index'   => 'permission:cargos:view',
             'store'   => 'permission:cargos:create',
             'show'    => 'permission:cargos:view',
             'update'  => 'permission:cargos:edit',
@@ -148,7 +148,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Bases module ──────────────────────────────────────────────────────────
     Route::prefix('bases')->name('api.bases.')->group(function () {
         Route::get('/', [App\Http\Controllers\Sector\BaseController::class, 'index'])
-            ->middleware('permission:bases:list')
+            ->middleware('permission:bases:view')
             ->name('index');
 
         Route::post('/', [App\Http\Controllers\Sector\BaseController::class, 'store'])
@@ -189,7 +189,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Actividades module ────────────────────────────────────────────────────
     Route::prefix('tipos-actividad')->name('api.tipos-actividad.')->group(function () {
         Route::get('/', [App\Http\Controllers\Actividad\TipoActividadController::class, 'index'])
-            ->middleware('permission:actividades:list')
+            ->middleware('permission:actividades:view')
             ->name('index');
         Route::post('/', [App\Http\Controllers\Actividad\TipoActividadController::class, 'store'])
             ->middleware('permission:actividades:create')
@@ -206,7 +206,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->names('api.actividades')
         ->parameters(['actividades' => 'actividad'])
         ->middleware([
-            'index'   => 'permission:actividades:list',
+            'index'   => 'permission:actividades:view',
             'store'   => 'permission:actividades:create',
             'show'    => 'permission:actividades:view',
             'update'  => 'permission:actividades:edit',

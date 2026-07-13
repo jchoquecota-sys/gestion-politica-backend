@@ -1,14 +1,14 @@
 # 🏗️ Guía de Arquitectura y Escalabilidad (Backend)
 
-Esta guía detalla el estándar de desarrollo utilizado en este proyecto para asegurar que el sistema sea profesional, escalable y fácil de mantener.
+Esta guía detalla el estándar de desarrollo utilizado en este proyecto para asegurar que el sistema sea profesional, estructurado, robusto y fácil de mantener.
 
 ---
 
 ## 🏛️ Stack Tecnológico
 *   **Framework:** Laravel 11+
 *   **Autenticación:** Laravel Sanctum (Stateless API)
-*   **Autorización:** Spatie Laravel Permission (Roles y Permisos)
-*   **Arquitectura:** API-First (Responde siempre JSON, sin redirecciones)
+*   **Autorización:** Spatie Laravel Permission (Roles y Permisos consolidados)
+*   **Arquitectura:** API-First (Responde siempre JSON, sin redirecciones de sesión)
 
 ---
 
@@ -53,15 +53,15 @@ class Modulo extends Model {
     public function deleter() { return $this->belongsTo(User::class, 'deleted_by'); }
 }
 ```
-Asegúrate de usar los traits de Spatie si el modelo necesita permisos (ej: `HasRoles`).
+Asegúrate de usar los traits de Spatie si el modelo necesita relacionarse directamente con roles/permisos (ej: `HasRoles` en el modelo `User`).
 
 ### 3. Permisos (Seeder)
-Añade los nuevos permisos en `database/seeders/PermissionSeeder.php`.
+Añade los nuevos permisos en `database/seeders/PermissionSeeder.php`. Siguiendo el **modelo unificado**, cada módulo cuenta con un permiso de lectura general `*:view` en lugar de dividir innecesariamente en `list` y `view`.
 ```php
 // PermissionSeeder.php
 private array $permissions = [
     // ...
-    'modulo:list',
+    'modulo:view',   // Reemplaza list/view por un único permiso de acceso/lectura
     'modulo:create',
     'modulo:edit',
     'modulo:delete',
@@ -78,15 +78,15 @@ php artisan make:request Modulo/UpdateModuloRequest
 
 ### 5. Controlador (Controller)
 El controlador debe seguir estas reglas:
-*   **Transacciones:** Envuelve `store`, `update` y `destroy` en `DB::transaction` para asegurar la integridad de los datos.
-*   **Consistencia:** Usa un método privado (ej: `formatResource()`) para devolver siempre la misma estructura de JSON.
+*   **Transacciones:** Envuelve `store`, `update` y `destroy` en `DB::transaction` para asegurar la integridad referencial.
+*   **Consistencia:** Usa un método privado (ej: `formatResource()`) o un Resource de API para devolver siempre la misma estructura de JSON.
 *   **Inyección:** Usa Route Model Binding para inyectar los modelos directamente en los métodos.
 
 ### 6. Rutas (Routes)
-Registra las rutas en `routes/api.php` dentro del grupo `auth:sanctum`.
+Registra las rutas en `routes/api.php` dentro del grupo `auth:sanctum`. Usa el middleware de permisos unificado `*:view` para las consultas.
 ```php
 Route::prefix('modulo')->name('api.modulo.')->group(function () {
-    Route::get('/', [ModuloController::class, 'index'])->middleware('permission:modulo:list');
+    Route::get('/', [ModuloController::class, 'index'])->middleware('permission:modulo:view');
     Route::post('/', [ModuloController::class, 'store'])->middleware('permission:modulo:create');
     // ...
 });
@@ -98,14 +98,21 @@ Route::prefix('modulo')->name('api.modulo.')->group(function () {
 
 ### API-First Authentication
 Se ha implementado un middleware personalizado en `app/Http/Middleware/Authenticate.php` que sobreescribe el comportamiento por defecto de Laravel.
-*   **Nunca redirige a `/login`**.
+*   **Nunca redirige a `/login`** (comportamiento web por defecto).
 *   Si falla la autenticación, devuelve siempre un **401 Unauthorized** en JSON.
 *   Se configura en `bootstrap/app.php` reemplazando el alias `auth`.
 
 ### Gate Bypass (Super Admin)
 El rol `super-admin` está configurado en `AppServiceProvider.php` para saltarse todos los checks de permisos. Si un usuario tiene este rol, `can()` y `middleware('permission:...')` siempre retornarán `true`.
 
-### 6. Paginación y Estandarización de Listas
+### Consolidación de Permisos (RBAC Simplificado)
+Para mitigar la complejidad y evitar inconsistencias en la UI y API, eliminamos los permisos individuales de tipo `*:list` (listar tablas) y los unificamos con los permisos de tipo `*:view` (ver detalles). De esta manera:
+- Si el usuario tiene acceso a la pantalla/módulo (`modulo:view`), puede realizar la petición index en la API.
+- Se previene el error común de habilitar el acceso a una lista pero bloquear el acceso al detalle de un registro individual del mismo tipo.
+
+---
+
+## 📊 Paginación y Estandarización de Listas
 Para garantizar el rendimiento a medida que crecen los datos, todos los endpoints de listado (`index`) deben implementar paginación profesional.
 
 **Parámetros aceptados:**
@@ -133,8 +140,8 @@ Para garantizar el rendimiento a medida que crecen los datos, todos los endpoint
 
 ## 🚀 Buenas Prácticas de Escalabilidad
 
-1.  **Evitar el Guard 'sanctum' en Base de Datos**: Siempre usa el guard `web` en tus seeders y modelos (incluso usando Sanctum). Hemos forzado `protected $guard_name = 'web'` en el modelo `User` para evitar conflictos.
-2.  **Lógica de Negocio Compleja**: Si un controlador empieza a tener métodos de más de 30-40 líneas, mueve esa lógica a una **Service Class** en `app/Services`.
+1.  **Evitar el Guard 'sanctum' en Base de Datos**: Siempre usa el guard `web` en tus seeders y modelos (incluso usando Sanctum). Hemos forzado `protected $guard_name = 'web'` en el modelo `User` para evitar conflictos de mapeo de Spatie en APIs.
+2.  **Lógica de Negocio Compleja**: Si un controlador empieza a tener métodos de más de 30-40 líneas, mueve esa lógica a una **Service Class** en `app/Services` o a una clase de Acción única (`app/Actions`).
 3.  **Resources (Opcional)**: Para proyectos muy grandes, considera usar `JsonResource` de Laravel en lugar de métodos `formatResource()` manuales.
 4.  **Filtros y Búsqueda**: Para listar recursos, usa Query Scopes en los modelos para manejar filtros, ordenamiento y búsquedas de forma limpia.
 5.  **Soft Deletes y Trazabilidad (Audit)**: 
@@ -147,5 +154,6 @@ Para garantizar el rendimiento a medida que crecen los datos, todos los endpoint
 ## 📦 Comandos de Mantenimiento
 
 *   **Limpiar todo el sistema:** `php artisan optimize:clear`
-*   **Actualizar permisos:** `php artisan db:seed --class=PermissionSeeder`
+*   **Actualizar permisos y roles base:** `php artisan db:seed --class=PermissionSeeder`
+*   **Reconstrucción limpia de la DB:** `php artisan migrate:fresh --seed`
 *   **Listar rutas API:** `php artisan route:list --path=api`
