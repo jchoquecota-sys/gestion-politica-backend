@@ -12,6 +12,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Helpers\GeoHelper;
+use App\Helpers\SujetoMapper;
 
 class ActividadSujetoController extends Controller
 {
@@ -27,7 +29,7 @@ class ActividadSujetoController extends Controller
         ]);
 
         try {
-            $sujetoTypeClass = $this->mapSujetoType($request->sujeto_type);
+            $sujetoTypeClass = SujetoMapper::map($request->sujeto_type);
 
             // Verificar si ya está asignado
             $exists = ActividadSujeto::where('actividad_id', $actividad->id)
@@ -104,15 +106,6 @@ class ActividadSujetoController extends Controller
         }
     }
 
-    private function mapSujetoType(string $type): string
-    {
-        return match ($type) {
-            'persona' => Persona::class,
-            'base' => Base::class,
-            'sector' => Sector::class,
-            default => throw new \InvalidArgumentException("Tipo de sujeto no válido"),
-        };
-    }
 
     /**
      * Camino B: Registro Manual por el Coordinador (Admin)
@@ -202,11 +195,11 @@ class ActividadSujetoController extends Controller
 
             // 1. Regla Anti-Casa (Geofencing)
             if ($actividad->latitud && $actividad->longitud) {
-                $distancia = $this->calcularDistancia(
-                    $actividad->latitud,
-                    $actividad->longitud,
-                    $request->latitud_usuario,
-                    $request->longitud_usuario
+                $distancia = GeoHelper::calcularDistancia(
+                    (float) $actividad->latitud,
+                    (float) $actividad->longitud,
+                    (float) $request->latitud_usuario,
+                    (float) $request->longitud_usuario
                 );
 
                 $radio = $actividad->radio_asistencia_metros ?? 100;
@@ -332,11 +325,11 @@ class ActividadSujetoController extends Controller
 
             // 1. Regla Anti-Casa (Geofencing)
             if ($actividad->latitud && $actividad->longitud) {
-                $distancia = $this->calcularDistancia(
-                    $actividad->latitud,
-                    $actividad->longitud,
-                    $request->latitud_usuario,
-                    $request->longitud_usuario
+                $distancia = GeoHelper::calcularDistancia(
+                    (float) $actividad->latitud,
+                    (float) $actividad->longitud,
+                    (float) $request->latitud_usuario,
+                    (float) $request->longitud_usuario
                 );
 
                 $radio = $actividad->radio_asistencia_metros ?? 100;
@@ -437,22 +430,4 @@ class ActividadSujetoController extends Controller
         }
     }
 
-    /**
-     * Calcula la distancia en metros entre dos coordenadas GPS (Fórmula de Haversine)
-     */
-    private function calcularDistancia($lat1, $lon1, $lat2, $lon2)
-    {
-        $earthRadius = 6371000; // Radio de la tierra en metros
-
-        $dLat = deg2rad($lat2 - $lat1);
-        $dLon = deg2rad($lon2 - $lon1);
-
-        $a = sin($dLat/2) * sin($dLat/2) +
-            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-            sin($dLon/2) * sin($dLon/2);
-
-        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
-
-        return $earthRadius * $c;
-    }
 }
