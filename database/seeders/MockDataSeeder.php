@@ -59,7 +59,7 @@ class MockDataSeeder extends Seeder
         $sectores = [
             ['id' => 1, 'nombre' => 'Tacna Cercado', 'descripcion' => 'Centro neurálgico', 'created_at' => $now, 'updated_at' => $now],
             ['id' => 2, 'nombre' => 'G. Albarracín', 'descripcion' => 'Distrito más poblado', 'created_at' => $now, 'updated_at' => $now],
-            ['id' => 3, 'nombre' => 'Alto Alianza', 'descripcion' => 'Zona norte comercial', 'created_at' => $now, 'updated_at' => $now],
+            ['id' => 3, 'nombre' => 'Alto de la Alianza', 'descripcion' => 'Distrito norte de Tacna', 'created_at' => $now, 'updated_at' => $now],
             ['id' => 4, 'nombre' => 'Ciudad Nueva', 'descripcion' => 'Cono norte denso', 'created_at' => $now, 'updated_at' => $now],
             ['id' => 5, 'nombre' => 'Pocollay', 'descripcion' => 'Zona residencial/campiña', 'created_at' => $now, 'updated_at' => $now],
             ['id' => 6, 'nombre' => 'Calana', 'descripcion' => 'Rural campestre', 'created_at' => $now, 'updated_at' => $now],
@@ -173,23 +173,23 @@ class MockDataSeeder extends Seeder
         // LANDING SETTINGS
         if (DB::table('landing_settings')->count() === 0) {
             DB::table('landing_settings')->insert([
-                'nombre_candidato' => 'José Luis Carranza Zavala',
-                'cargo_candidatura' => 'Candidato a la Alcaldía de Pocollay 2026',
-                'eslogan' => 'Vivir para servir a la ciudadanía',
-                'biografia' => 'Nacido en Tacna, con 20 años de experiencia en gestión pública. Abogado y magíster en políticas públicas. Comprometido con el desarrollo sostenible de nuestra región.',
+                'nombre_candidato' => 'Jhonson Mamani Velasquez',
+                'cargo_candidatura' => 'Candidato a Alcalde de Alto de la Alianza 2026',
+                'eslogan' => 'Gestión transparente y lucha contra la corrupción',
+                'biografia' => 'Jhonson Mamani Velasquez, candidato a la alcaldía del distrito de Alto de la Alianza. Comprometido con una gestión transparente, la lucha contra la corrupción y el desarrollo de nuestra comunidad.',
                 'logo_path' => $pathLogo,
                 'foto_principal_path' => $pathCandidatoPrincipal,
                 'foto_secundaria_path' => $pathCandidatoSecundaria,
                 'redes_sociales' => json_encode([
                     'facebook' => 'https://www.facebook.com/profile.php?id=61584765587862',
-                    'instagram' => 'https://instagram.com/juanperez',
-                    'tiktok' => 'https://tiktok.com/@juanperez',
+                    'instagram' => 'https://instagram.com/jhonsonmamani',
+                    'tiktok' => 'https://tiktok.com/@jhonsonmamani',
                     'whatsapp' => '987654321'
                 ]),
-                'color_primario' => '#1e40af',
-                'color_secundario' => '#dc2626',
-                'meta_titulo' => 'Juan Pérez - Alcalde de Tacna',
-                'meta_descripcion' => 'Página oficial de la campaña de Juan Pérez a la alcaldía provincial de Tacna. Conoce nuestras propuestas y únete al cambio.',
+                'color_primario' => '#E31B23',
+                'color_secundario' => '#1A1A1A',
+                'meta_titulo' => 'Jhonson Mamani Velasquez — Candidato a Alcalde de Alto de la Alianza',
+                'meta_descripcion' => 'Página oficial de la campaña de Jhonson Mamani Velasquez a la alcaldía de Alto de la Alianza. Gestión transparente y lucha contra la corrupción.',
                 'created_at' => $now,
                 'updated_at' => $now
             ]);
