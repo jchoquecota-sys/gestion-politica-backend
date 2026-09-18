@@ -452,6 +452,8 @@ class ActividadController extends Controller
      */
     public function getPublicInfo(Actividad $actividad): JsonResponse
     {
+        $motivo = \App\Helpers\AsistenciaHelper::motivoBloqueo($actividad, exigirVentana: true);
+
         return response()->json([
             'status' => 'success',
             'data' => [
@@ -462,6 +464,8 @@ class ActividadController extends Controller
                 'latitud' => $actividad->latitud,
                 'longitud' => $actividad->longitud,
                 'radio_asistencia_metros' => $actividad->radio_asistencia_metros,
+                'asistencia_abierta' => $motivo === null,
+                'asistencia_mensaje' => $motivo,
             ]
         ]);
     }
