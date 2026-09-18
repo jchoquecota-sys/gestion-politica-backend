@@ -18,7 +18,7 @@ class UpdateLandingSettingRequest extends FormRequest
             'cargo_candidatura' => 'nullable|string|max:150',
             'eslogan'           => 'nullable|string|max:255',
             'biografia'         => 'nullable|string',
-            'logo'              => 'nullable|image|mimes:jpg,jpeg,png,webp,svg|max:2048',
+            'logo'              => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
             'foto_principal'    => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
             'foto_secundaria'   => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
             'redes_sociales'    => 'nullable|array',

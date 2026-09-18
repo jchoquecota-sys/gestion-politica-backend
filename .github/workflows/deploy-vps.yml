@@ -1,0 +1,39 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend-vps
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Deploy backend en VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            APP=/var/www/gestion-politica-backend
+            if [ -x "$APP/scripts/deploy-vps.sh" ]; then
+              bash "$APP/scripts/deploy-vps.sh"
+            else
+              cd "$APP"
+              git remote get-url mio >/dev/null 2>&1 || \
+                git remote add mio https://github.com/jchoquecota-sys/gestion-politica-backend.git
+              git fetch mio main
+              git reset --hard mio/main
+              chmod +x scripts/deploy-vps.sh
+              bash scripts/deploy-vps.sh
+            fi
