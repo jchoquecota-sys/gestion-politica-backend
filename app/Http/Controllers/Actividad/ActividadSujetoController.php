@@ -347,11 +347,14 @@ class ActividadSujetoController extends Controller
                     ->lockForUpdate()
                     ->first();
 
+                // Si la persona existe en el padrón pero no estaba en la lista, se vincula al marcar
                 if (!$asignacion) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => $mensajeNoAutorizado,
-                    ], 403);
+                    $asignacion = ActividadSujeto::create([
+                        'actividad_id' => $actividad->id,
+                        'sujeto_id' => $persona->id,
+                        'sujeto_type' => Persona::class,
+                    ]);
+                    $asignacion = ActividadSujeto::where('id', $asignacion->id)->lockForUpdate()->first();
                 }
 
                 if ($asignacion->hora_asistencia !== null) {

@@ -117,8 +117,21 @@ test('it blocks duplicate check-in with same fingerprint (Anti-Amigo rule)', fun
         ->assertJsonPath('message', 'Este dispositivo ya fue usado para registrar la asistencia de otra persona hoy.');
 });
 
-test('it rejects DNI check-in if the person is not pre-registered in the activity', function () {
-    Persona::create([
+test('it rejects DNI check-in if the person does not exist in the roster', function () {
+    $response = $this->postJson(route('api.public.actividades.asistencia.dni', $this->actividad->id), [
+        'dni' => '00000000',
+        'latitud_usuario' => -12.046374,
+        'longitud_usuario' => -77.042793,
+        'browser_fingerprint' => 'fp_desconocido'
+    ]);
+
+    $response->assertStatus(403)
+        ->assertJsonPath('status', 'error')
+        ->assertJsonPath('message', 'No se pudo autorizar este DNI para la actividad. Verifique el número o consulte con su responsable.');
+});
+
+test('it registers DNI check-in creating assignment if person exists but was not pre-registered', function () {
+    $persona = Persona::create([
         'dni' => '87654321',
         'nombres' => 'Carlos',
         'apellidos' => 'Mendoza'
@@ -131,9 +144,16 @@ test('it rejects DNI check-in if the person is not pre-registered in the activit
         'browser_fingerprint' => 'fp_carlos'
     ]);
 
-    $response->assertStatus(403)
-        ->assertJsonPath('status', 'error')
-        ->assertJsonPath('message', 'No se pudo autorizar este DNI para la actividad. Verifique el número o consulte con su responsable.');
+    $response->assertStatus(200)
+        ->assertJsonPath('status', 'success')
+        ->assertJsonPath('tipo', 'ingreso');
+
+    $this->assertDatabaseHas('actividad_sujetos', [
+        'actividad_id' => $this->actividad->id,
+        'sujeto_id' => $persona->id,
+        'sujeto_type' => Persona::class,
+        'metodo_registro' => 'qr_self_service',
+    ]);
 });
 
 test('it registers DNI check-in successfully if the person is pre-registered and in range', function () {
