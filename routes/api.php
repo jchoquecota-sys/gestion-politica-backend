@@ -126,6 +126,10 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // ── Personas module ───────────────────────────────────────────────────────
+    Route::post('personas/import', [App\Http\Controllers\Sector\PersonaController::class, 'import'])
+        ->middleware('permission:personas:create')
+        ->name('api.personas.import');
+
     Route::apiResource('personas', App\Http\Controllers\Sector\PersonaController::class)
         ->names('api.personas')
         ->middleware([

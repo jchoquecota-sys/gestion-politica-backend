@@ -236,6 +236,246 @@ class PersonaController extends Controller
     }
 
     /**
+     * Importar personas desde CSV.
+     * Columnas aceptadas (flexible): nombres, apellidos, dni, celular
+     * o "nombres y apellidos" / nombre_completo.
+     * replace=1 reemplaza el padrón activo (soft-delete + insert).
+     */
+    public function import(Request $request): JsonResponse
+    {
+        $request->validate([
+            // No usar mimes:csv — en Windows el MIME suele ser application/vnd.ms-excel
+            'file' => 'required|file|max:5120',
+            'replace' => 'sometimes',
+        ]);
+
+        $uploaded = $request->file('file');
+        $ext = strtolower((string) $uploaded->getClientOriginalExtension());
+        if (!in_array($ext, ['csv', 'txt'], true)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'El archivo debe ser CSV (.csv o .txt).',
+            ], 422);
+        }
+
+        $replace = filter_var($request->input('replace', true), FILTER_VALIDATE_BOOLEAN);
+        $path = $uploaded->getRealPath();
+        $handle = fopen($path, 'r');
+        if ($handle === false) {
+            return response()->json(['status' => 'error', 'message' => 'No se pudo leer el archivo CSV.'], 422);
+        }
+
+        // Detectar BOM UTF-8
+        $bom = fread($handle, 3);
+        if ($bom !== "\xEF\xBB\xBF") {
+            rewind($handle);
+        }
+
+        $delimiter = ',';
+        $firstLine = fgets($handle);
+        if ($firstLine === false) {
+            fclose($handle);
+            return response()->json(['status' => 'error', 'message' => 'El CSV está vacío.'], 422);
+        }
+        if (substr_count($firstLine, ';') > substr_count($firstLine, ',')) {
+            $delimiter = ';';
+        }
+        if (substr_count($firstLine, "\t") > substr_count($firstLine, $delimiter)) {
+            $delimiter = "\t";
+        }
+        rewind($handle);
+        if ($bom === "\xEF\xBB\xBF") {
+            fread($handle, 3);
+        }
+
+        $header = fgetcsv($handle, 0, $delimiter);
+        if (!$header) {
+            fclose($handle);
+            return response()->json(['status' => 'error', 'message' => 'No se pudo leer la cabecera del CSV.'], 422);
+        }
+
+        $header = array_map(function ($h) {
+            $h = strtolower(trim((string) $h));
+            $h = str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $h);
+            return preg_replace('/\s+/', '_', $h);
+        }, $header);
+
+        $map = [
+            'nombres' => null,
+            'apellidos' => null,
+            'dni' => null,
+            'celular' => null,
+            'nombre_completo' => null,
+        ];
+        foreach ($header as $i => $col) {
+            if (in_array($col, ['nombres', 'nombre'], true)) {
+                $map['nombres'] = $i;
+            } elseif (in_array($col, ['apellidos', 'apellido'], true)) {
+                $map['apellidos'] = $i;
+            } elseif (in_array($col, ['dni', 'documento', 'doc'], true)) {
+                $map['dni'] = $i;
+            } elseif (in_array($col, ['celular', 'telefono', 'tel', 'phone', 'movil'], true)) {
+                $map['celular'] = $i;
+            } elseif (in_array($col, ['nombres_y_apellidos', 'nombre_completo', 'nombres_apellidos', 'nombre'], true)
+                || str_contains($col, 'nombres_y_apellidos')
+                || str_contains($col, 'nombre_completo')) {
+                $map['nombre_completo'] = $i;
+            }
+        }
+
+        // Si no hay cabeceras reconocidas, asumir orden: N°, NOMBRES Y APELLIDOS, DNI, CELULAR
+        if ($map['dni'] === null && $map['nombres'] === null && $map['nombre_completo'] === null) {
+            if (count($header) >= 4) {
+                $map['nombre_completo'] = 1;
+                $map['dni'] = 2;
+                $map['celular'] = 3;
+            } elseif (count($header) >= 3) {
+                $map['nombre_completo'] = 0;
+                $map['dni'] = 1;
+                $map['celular'] = 2;
+            }
+        }
+
+        $rows = [];
+        $seenDni = [];
+        while (($data = fgetcsv($handle, 0, $delimiter)) !== false) {
+            if (count(array_filter($data, fn ($v) => trim((string) $v) !== '')) === 0) {
+                continue;
+            }
+
+            $nombres = $map['nombres'] !== null ? trim((string) ($data[$map['nombres']] ?? '')) : '';
+            $apellidos = $map['apellidos'] !== null ? trim((string) ($data[$map['apellidos']] ?? '')) : '';
+            if (($nombres === '' || $apellidos === '') && $map['nombre_completo'] !== null) {
+                $full = trim((string) ($data[$map['nombre_completo']] ?? ''));
+                // Saltar si es fila de índice solo numérico
+                if ($full === '' || preg_match('/^\d+$/', $full)) {
+                    continue;
+                }
+                $parts = preg_split('/\s+/', $full) ?: [];
+                if (count($parts) === 1) {
+                    $nombres = $parts[0];
+                    $apellidos = 'NOMBRE';
+                } else {
+                    $nombres = array_shift($parts);
+                    $apellidos = implode(' ', $parts);
+                }
+            }
+
+            if ($nombres === '' && $apellidos === '') {
+                continue;
+            }
+            if ($nombres === '') {
+                $nombres = 'SIN';
+            }
+            if ($apellidos === '') {
+                $apellidos = 'NOMBRE';
+            }
+
+            $dni = $map['dni'] !== null ? preg_replace('/\D+/', '', (string) ($data[$map['dni']] ?? '')) : '';
+            $dni = $dni !== '' ? substr($dni, 0, 8) : null;
+            if ($dni !== null) {
+                if (isset($seenDni[$dni])) {
+                    continue;
+                }
+                $seenDni[$dni] = true;
+            }
+
+            $celular = $map['celular'] !== null ? preg_replace('/\D+/', '', (string) ($data[$map['celular']] ?? '')) : '';
+            $celular = $celular !== '' ? substr($celular, 0, 15) : null;
+
+            $rows[] = [
+                'nombres' => mb_substr($nombres, 0, 150),
+                'apellidos' => mb_substr($apellidos, 0, 150),
+                'dni' => $dni,
+                'celular' => $celular,
+            ];
+        }
+        fclose($handle);
+
+        if (count($rows) === 0) {
+            return response()->json(['status' => 'error', 'message' => 'No se encontraron filas válidas en el CSV.'], 422);
+        }
+
+        try {
+            $inserted = 0;
+            DB::transaction(function () use ($rows, $replace, &$inserted) {
+                $now = now();
+                $personaClass = Persona::class;
+
+                if ($replace) {
+                    DB::table('users')->whereNotNull('persona_id')->update(['persona_id' => null]);
+
+                    DB::table('actividad_sujetos')
+                        ->where('sujeto_type', $personaClass)
+                        ->whereNull('deleted_at')
+                        ->update(['deleted_at' => $now, 'updated_at' => $now]);
+
+                    if (\Illuminate\Support\Facades\Schema::hasTable('base_personas')) {
+                        DB::table('base_personas')->delete();
+                    }
+                    if (\Illuminate\Support\Facades\Schema::hasTable('sector_personas')) {
+                        DB::table('sector_personas')->delete();
+                    }
+
+                    DB::table('personas')->whereNull('deleted_at')->update([
+                        'deleted_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+
+                    DB::table('personas')
+                        ->whereNotNull('deleted_at')
+                        ->whereNotNull('dni')
+                        ->update(['dni' => null, 'email' => null]);
+                }
+
+                foreach ($rows as $row) {
+                    if (!$replace && !empty($row['dni'])) {
+                        $exists = Persona::withTrashed()->where('dni', $row['dni'])->first();
+                        if ($exists) {
+                            if ($exists->trashed()) {
+                                $exists->restore();
+                            }
+                            $exists->update([
+                                'nombres' => $row['nombres'],
+                                'apellidos' => $row['apellidos'],
+                                'celular' => $row['celular'],
+                                'updated_by' => auth()->id(),
+                            ]);
+                            continue;
+                        }
+                    }
+
+                    DB::table('personas')->insert([
+                        'dni' => $row['dni'],
+                        'nombres' => $row['nombres'],
+                        'apellidos' => $row['apellidos'],
+                        'celular' => $row['celular'],
+                        'created_by' => auth()->id(),
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                    $inserted++;
+                }
+            });
+
+            return response()->json([
+                'status' => 'success',
+                'message' => $replace
+                    ? "Padrón reemplazado. Se importaron {$inserted} personas."
+                    : "Importación completada. Se agregaron/actualizaron registros ({$inserted} nuevos).",
+                'data' => [
+                    'inserted' => $inserted,
+                    'total_filas' => count($rows),
+                    'replace' => $replace,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Error importando personas CSV: ' . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'No se pudo importar el CSV.'], 500);
+        }
+    }
+
+    /**
      * Formatear el recurso.
      */
     private function formatResource(Persona $persona): array
