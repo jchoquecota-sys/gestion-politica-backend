@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PersonaController extends Controller
 {
@@ -107,6 +108,93 @@ class PersonaController extends Controller
                 'per_page'     => $paginator->perPage(),
                 'total'        => $paginator->total(),
             ]
+        ]);
+    }
+
+    /**
+     * Exportar padrón a CSV UTF-8 con BOM (Excel respeta ñ y acentos).
+     */
+    public function export(Request $request): StreamedResponse|JsonResponse
+    {
+        $query = Persona::query();
+        $user = auth()->user();
+
+        if (!$user->hasPermissionTo('personas:list-all')) {
+            if ($user->hasPermissionTo('personas:list-only-sector')) {
+                $allowedSectors = $user->getAllowedSectorIds();
+                $query->where(function ($q) use ($allowedSectors, $user) {
+                    $q->whereHas('sectorPersonas', function ($sq) use ($allowedSectors) {
+                        $sq->whereIn('sector_id', $allowedSectors);
+                    })->orWhereHas('basePersonas.base', function ($bq) use ($allowedSectors) {
+                        $bq->whereIn('sector_id', $allowedSectors);
+                    })->orWhere('created_by', $user->id);
+                });
+            } else {
+                $allowedBases = $user->getAllowedBaseIds();
+                $query->where(function ($q) use ($allowedBases, $user) {
+                    $q->whereHas('basePersonas', function ($bq) use ($allowedBases) {
+                        $bq->whereIn('base_id', $allowedBases);
+                    })->orWhere('created_by', $user->id);
+                });
+            }
+        }
+
+        if ($request->filled('sector_id')) {
+            $sectorId = (int) $request->sector_id;
+            if (!$user->hasPermissionTo('personas:list-all')
+                && !in_array($sectorId, $user->getAllowedSectorIds(), true)) {
+                return response()->json(['status' => 'error', 'message' => 'No tiene permiso para filtrar por este sector.'], 403);
+            }
+            $query->where(function ($q) use ($sectorId) {
+                $q->whereHas('sectorPersonas', fn ($sq) => $sq->where('sector_id', $sectorId))
+                    ->orWhereHas('basePersonas.base', fn ($bq) => $bq->where('sector_id', $sectorId));
+            });
+        }
+
+        if ($request->filled('base_id')) {
+            $baseId = (int) $request->base_id;
+            $query->whereHas('basePersonas', fn ($bq) => $bq->where('base_id', $baseId));
+        }
+
+        if ($request->filled('search')) {
+            $search = (string) $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('nombres', 'like', "%{$search}%")
+                    ->orWhere('apellidos', 'like', "%{$search}%")
+                    ->orWhere('dni', 'like', "%{$search}%");
+            });
+        }
+
+        $query->orderBy('apellidos')->orderBy('nombres');
+        $filename = 'padron-personas-' . now()->format('Y-m-d') . '.csv';
+
+        return response()->streamDownload(function () use ($query) {
+            $out = fopen('php://output', 'w');
+            if ($out === false) {
+                return;
+            }
+
+            // BOM UTF-8: sin esto Excel en Windows muestra "QuiÃ±onez" en lugar de "Quiñonez"
+            fwrite($out, "\xEF\xBB\xBF");
+
+            // Separador ; compatible con Excel en español
+            fputcsv($out, ['Nombres', 'Apellidos', 'DNI', 'Celular', 'Email'], ';');
+
+            $query->chunk(500, function ($personas) use ($out) {
+                foreach ($personas as $persona) {
+                    fputcsv($out, [
+                        (string) $persona->nombres,
+                        (string) $persona->apellidos,
+                        (string) ($persona->dni ?? ''),
+                        (string) ($persona->celular ?? ''),
+                        (string) ($persona->email ?? ''),
+                    ], ';');
+                }
+            });
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }
 
