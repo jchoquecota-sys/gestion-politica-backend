@@ -260,16 +260,21 @@ class PersonaController extends Controller
 
         $replace = filter_var($request->input('replace', true), FILTER_VALIDATE_BOOLEAN);
         $path = $uploaded->getRealPath();
-        $handle = fopen($path, 'r');
-        if ($handle === false) {
+        $raw = @file_get_contents($path);
+        if ($raw === false || $raw === '') {
             return response()->json(['status' => 'error', 'message' => 'No se pudo leer el archivo CSV.'], 422);
         }
 
-        // Detectar BOM UTF-8
-        $bom = fread($handle, 3);
-        if ($bom !== "\xEF\xBB\xBF") {
-            rewind($handle);
+        // Excel (Windows) suele exportar en Windows-1252; normalizamos a UTF-8
+        // para conservar ñ, tildes y diéresis en nombres/apellidos.
+        $csv = $this->csvContentsToUtf8($raw);
+
+        $handle = fopen('php://temp', 'r+');
+        if ($handle === false) {
+            return response()->json(['status' => 'error', 'message' => 'No se pudo leer el archivo CSV.'], 422);
         }
+        fwrite($handle, $csv);
+        rewind($handle);
 
         $delimiter = ',';
         $firstLine = fgets($handle);
@@ -284,9 +289,6 @@ class PersonaController extends Controller
             $delimiter = "\t";
         }
         rewind($handle);
-        if ($bom === "\xEF\xBB\xBF") {
-            fread($handle, 3);
-        }
 
         $header = fgetcsv($handle, 0, $delimiter);
         if (!$header) {
@@ -294,9 +296,14 @@ class PersonaController extends Controller
             return response()->json(['status' => 'error', 'message' => 'No se pudo leer la cabecera del CSV.'], 422);
         }
 
+        // Solo normalizar cabeceras para mapear columnas; los datos conservan acentos.
         $header = array_map(function ($h) {
-            $h = strtolower(trim((string) $h));
-            $h = str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $h);
+            $h = mb_strtolower(trim((string) $h), 'UTF-8');
+            $h = str_replace(
+                ['á', 'é', 'í', 'ó', 'ú', 'ü', 'ñ', 'Á', 'É', 'Í', 'Ó', 'Ú', 'Ü', 'Ñ'],
+                ['a', 'e', 'i', 'o', 'u', 'u', 'n', 'a', 'e', 'i', 'o', 'u', 'u', 'n'],
+                $h
+            );
             return preg_replace('/\s+/', '_', $h);
         }, $header);
 
@@ -343,15 +350,19 @@ class PersonaController extends Controller
                 continue;
             }
 
-            $nombres = $map['nombres'] !== null ? trim((string) ($data[$map['nombres']] ?? '')) : '';
-            $apellidos = $map['apellidos'] !== null ? trim((string) ($data[$map['apellidos']] ?? '')) : '';
+            $nombres = $map['nombres'] !== null
+                ? $this->sanitizeUtf8Name((string) ($data[$map['nombres']] ?? ''))
+                : '';
+            $apellidos = $map['apellidos'] !== null
+                ? $this->sanitizeUtf8Name((string) ($data[$map['apellidos']] ?? ''))
+                : '';
             if (($nombres === '' || $apellidos === '') && $map['nombre_completo'] !== null) {
-                $full = trim((string) ($data[$map['nombre_completo']] ?? ''));
+                $full = $this->sanitizeUtf8Name((string) ($data[$map['nombre_completo']] ?? ''));
                 // Saltar si es fila de índice solo numérico
-                if ($full === '' || preg_match('/^\d+$/', $full)) {
+                if ($full === '' || preg_match('/^\d+$/u', $full)) {
                     continue;
                 }
-                $parts = preg_split('/\s+/', $full) ?: [];
+                $parts = preg_split('/\s+/u', $full) ?: [];
                 if (count($parts) === 1) {
                     $nombres = $parts[0];
                     $apellidos = 'NOMBRE';
@@ -384,8 +395,8 @@ class PersonaController extends Controller
             $celular = $celular !== '' ? substr($celular, 0, 15) : null;
 
             $rows[] = [
-                'nombres' => mb_substr($nombres, 0, 150),
-                'apellidos' => mb_substr($apellidos, 0, 150),
+                'nombres' => mb_substr($nombres, 0, 150, 'UTF-8'),
+                'apellidos' => mb_substr($apellidos, 0, 150, 'UTF-8'),
                 'dni' => $dni,
                 'celular' => $celular,
             ];
@@ -494,5 +505,70 @@ class PersonaController extends Controller
             'foto_url'        => $persona->foto_path ? Storage::disk('public')->url($persona->foto_path) : null,
             'created_at'      => $persona->created_at?->toDateTimeString(),
         ];
+    }
+
+    /**
+     * Normaliza el contenido del CSV a UTF-8 (Excel Windows-1252 / ISO-8859-1 / UTF-16).
+     */
+    private function csvContentsToUtf8(string $raw): string
+    {
+        if (str_starts_with($raw, "\xEF\xBB\xBF")) {
+            return substr($raw, 3);
+        }
+
+        if (str_starts_with($raw, "\xFF\xFE")) {
+            $converted = mb_convert_encoding(substr($raw, 2), 'UTF-8', 'UTF-16LE');
+
+            return $converted === false ? $raw : $converted;
+        }
+
+        if (str_starts_with($raw, "\xFE\xFF")) {
+            $converted = mb_convert_encoding(substr($raw, 2), 'UTF-8', 'UTF-16BE');
+
+            return $converted === false ? $raw : $converted;
+        }
+
+        if (mb_check_encoding($raw, 'UTF-8')) {
+            return $raw;
+        }
+
+        foreach (['Windows-1252', 'ISO-8859-1'] as $enc) {
+            $converted = @mb_convert_encoding($raw, 'UTF-8', $enc);
+            if ($converted !== false && mb_check_encoding($converted, 'UTF-8')) {
+                return $converted;
+            }
+        }
+
+        $fallback = @iconv('Windows-1252', 'UTF-8//TRANSLIT', $raw);
+
+        return $fallback !== false ? $fallback : $raw;
+    }
+
+    /**
+     * Limpia espacios y normaliza Unicode NFC sin quitar ñ ni acentos.
+     */
+    private function sanitizeUtf8Name(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (!mb_check_encoding($value, 'UTF-8')) {
+            $value = (string) mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
+        }
+
+        if (class_exists(\Normalizer::class)) {
+            $normalized = \Normalizer::normalize($value, \Normalizer::FORM_C);
+            if (is_string($normalized) && $normalized !== '') {
+                $value = $normalized;
+            }
+        }
+
+        // Quitar caracteres de control, conservar letras (incl. ñ/á), números, espacios y signos comunes.
+        $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value) ?? $value;
+        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+
+        return trim($value);
     }
 }
