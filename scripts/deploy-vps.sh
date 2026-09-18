@@ -2,6 +2,10 @@
 # Deploy backend en el VPS. Ejecutar desde /var/www/gestion-politica-backend
 set -euo pipefail
 
+# Normalizar CRLF si el repo se editó en Windows
+sed -i 's/\r$//' "set -euo pipefail
+" 2>/dev/null || true
+
 APP_DIR="${APP_DIR:-/var/www/gestion-politica-backend}"
 REMOTE="${DEPLOY_REMOTE:-mio}"
 BRANCH="${DEPLOY_BRANCH:-main}"
