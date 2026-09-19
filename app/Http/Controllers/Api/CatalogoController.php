@@ -7,7 +7,9 @@ use App\Models\Sector;
 use App\Models\Cargo;
 use App\Models\Persona;
 use App\Models\Base;
+use App\Models\User;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -22,10 +24,10 @@ class CatalogoController extends Controller
         $query = Sector::select('id', 'nombre');
         $user  = auth()->user();
 
-        $hasGlobalAccess = $user->hasPermissionTo('bases:list-all')
-                        || $user->hasPermissionTo('sectores:list')
-                        || $user->hasPermissionTo('personas:list-all')
-                        || $user->hasPermissionTo('actividades:manage-all');
+        $hasGlobalAccess = $this->userCan($user, 'bases:list-all')
+                        || $this->userCan($user, 'sectores:view')
+                        || $this->userCan($user, 'personas:list-all')
+                        || $this->userCan($user, 'actividades:manage-all');
 
         if (!$hasGlobalAccess) {
             $allowedSectors = $user->getAllowedSectorIds();
@@ -62,13 +64,13 @@ class CatalogoController extends Controller
         $user  = auth()->user();
         $query = Persona::select('id', 'nombres', 'apellidos', 'dni');
 
-        $hasGlobalAccess = $user->hasPermissionTo('personas:list-all')
-                        || $user->hasPermissionTo('actividades:manage-all');
+        $hasGlobalAccess = $this->userCan($user, 'personas:list-all')
+                        || $this->userCan($user, 'actividades:manage-all');
 
-        $hasSectorAccess = $user->hasPermissionTo('personas:list-only-sector')
-                        || $user->hasPermissionTo('actividades:manage-sector');
+        $hasSectorAccess = $this->userCan($user, 'personas:list-only-sector')
+                        || $this->userCan($user, 'actividades:manage-sector');
 
-        $hasBaseAccess = $user->hasPermissionTo('actividades:manage-base');
+        $hasBaseAccess = $this->userCan($user, 'actividades:manage-base');
 
         // Aplicar filtro de scope si el usuario no tiene acceso global
         if (!$hasGlobalAccess) {
@@ -112,13 +114,14 @@ class CatalogoController extends Controller
         $query = Base::select('id', 'nombre', 'sector_id');
         $user  = auth()->user();
 
-        $hasGlobalAccess = $user->hasPermissionTo('bases:list-all')
-                        || $user->hasPermissionTo('personas:list-all')
-                        || $user->hasPermissionTo('actividades:manage-all');
+        $hasGlobalAccess = $this->userCan($user, 'bases:list-all')
+                        || $this->userCan($user, 'personas:list-all')
+                        || $this->userCan($user, 'actividades:manage-all');
 
-        $hasSectorAccess = $user->hasPermissionTo('sectores:list')
-                        || $user->hasPermissionTo('personas:list-only-sector')
-                        || $user->hasPermissionTo('actividades:manage-sector');
+        // Permiso real en el sistema: sectores:view (no existe sectores:list)
+        $hasSectorAccess = $this->userCan($user, 'sectores:view')
+                        || $this->userCan($user, 'personas:list-only-sector')
+                        || $this->userCan($user, 'actividades:manage-sector');
 
         if ($request->has('sector_id')) {
             $query->where('sector_id', $request->sector_id);
@@ -135,5 +138,21 @@ class CatalogoController extends Controller
         }
 
         return response()->json(['data' => $query->orderBy('nombre')->get()]);
+    }
+
+    /**
+     * Comprueba permiso sin lanzar excepción si el nombre no existe en Spatie.
+     */
+    private function userCan(?User $user, string $permission): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        try {
+            return $user->hasPermissionTo($permission);
+        } catch (PermissionDoesNotExist $e) {
+            return false;
+        }
     }
 }
